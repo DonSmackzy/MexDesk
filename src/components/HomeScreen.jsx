@@ -127,63 +127,62 @@ export function HomeScreen({
               </span>
             </div>
 
-            {/* Big 9-Digit ID & Custom Alias Display */}
-            <div className="bg-gradient-to-br from-slate-50 to-rose-50/30 rounded-xl p-4 border border-slate-200/80 mb-4 text-center">
-              <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block mb-1">
+            {/* Big 9-Digit ID & Custom Alias Display - Iconic Solid Red Card */}
+            <div className="bg-gradient-to-br from-[#E52E2E] via-[#D31B1B] to-[#B71515] rounded-2xl p-5 shadow-lg shadow-red-600/25 mb-4 text-center text-white border border-red-500/40 relative overflow-hidden">
+              {/* Subtle background glow effect */}
+              <div className="absolute -right-8 -bottom-8 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+
+              <span className="text-[11px] uppercase tracking-wider font-semibold text-red-100 block mb-1">
                 Your MexDesk Address
               </span>
-              <div className="text-3xl font-mono font-bold tracking-wider text-slate-800 flex items-center justify-center space-x-2">
+              <div className="text-3xl sm:text-4xl font-mono font-bold tracking-wider text-white flex items-center justify-center space-x-2 drop-shadow-sm my-1">
                 {myId ? (
                   <span>{myId}</span>
                 ) : (
-                  <span className="text-slate-300 animate-pulse">--- --- ---</span>
+                  <span className="text-red-200 animate-pulse">--- --- ---</span>
                 )}
               </div>
 
               {/* Customizable Alias Row */}
-              <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex items-center justify-center space-x-2">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Alias:</span>
+              <div className="mt-3 pt-3 border-t border-white/20 flex items-center justify-center space-x-2">
+                <span className="text-[11px] font-semibold text-red-100 uppercase tracking-wider">Alias:</span>
                 {isEditingAlias ? (
-                  <form onSubmit={handleSaveAliasSubmit} className="flex items-center space-x-1">
+                  <form onSubmit={handleSaveAliasSubmit} className="flex items-center space-x-1.5">
                     <input
                       type="text"
                       value={aliasInput}
                       onChange={(e) => setAliasInput(e.target.value)}
                       placeholder="e.g. boss-mezie@mex"
-                      className="px-2 py-0.5 text-xs bg-white border border-mexdesk-red rounded-lg font-medium text-slate-800 focus:outline-none w-36"
+                      className="px-2.5 py-1 text-xs bg-white border border-white rounded-lg font-medium text-slate-900 focus:outline-none w-40 shadow-sm"
                       autoFocus
                     />
                     <button
                       type="submit"
-                      className="p-1 rounded bg-mexdesk-red text-white hover:bg-mexdesk-crimson transition text-xs"
+                      className="p-1 rounded-lg bg-white text-mexdesk-red hover:bg-red-50 font-bold transition text-xs shadow-sm"
                       title="Save alias"
                     >
-                      <Check size={12} />
+                      <Check size={14} />
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsEditingAlias(false)}
-                      className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300 transition text-xs"
+                      className="p-1 rounded-lg bg-black/30 hover:bg-black/40 text-white transition text-xs"
                       title="Cancel"
                     >
-                      <X size={12} />
+                      <X size={14} />
                     </button>
                   </form>
                 ) : (
                   <div className="flex items-center space-x-1.5">
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                      myAlias
-                        ? "bg-rose-50 text-mexdesk-red border-rose-200"
-                        : "bg-slate-100 text-slate-500 border-slate-200"
-                    }`}>
+                    <span className="px-3 py-0.5 rounded-full text-xs font-semibold bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm transition shadow-inner">
                       {myAlias ? myAlias : "No alias set"}
                     </span>
                     <button
                       onClick={() => { setAliasInput(myAlias); setIsEditingAlias(true); }}
-                      className="p-1 rounded-md hover:bg-slate-200/80 text-slate-400 hover:text-slate-700 transition"
+                      className="p-1 rounded-md hover:bg-white/20 text-white/90 hover:text-white transition"
                       title="Set or edit your custom alias"
                     >
-                      <Pencil size={12} />
+                      <Pencil size={13} />
                     </button>
                   </div>
                 )}

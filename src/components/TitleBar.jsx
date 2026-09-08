@@ -25,17 +25,17 @@ export function TitleBar({ isConnected, myId, onOpenSettings }) {
 
         <div className="h-4 w-px bg-slate-200 mx-1"></div>
 
-        {/* Network status pill */}
+        {/* Network status pill: Online or Offline */}
         <div className="flex items-center space-x-1.5 text-xs">
           {isConnected ? (
-            <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium text-[11px] border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Ready</span>
+            <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-[11px] border border-emerald-200 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Online</span>
             </span>
           ) : (
-            <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium text-[11px] border border-amber-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              <span>Connecting to Relay...</span>
+            <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 font-semibold text-[11px] border border-rose-200 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>Offline</span>
             </span>
           )}
 
