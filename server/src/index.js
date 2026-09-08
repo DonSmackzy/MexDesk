@@ -74,6 +74,27 @@ function normalizeId(id) {
   return id.trim();
 }
 
+function findPeer(query) {
+  if (!query) return null;
+  const q = query.toString().trim();
+  const lower = q.toLowerCase();
+
+  // 1. Direct ID match
+  if (peers.has(q)) return peers.get(q);
+
+  // 2. Normalized 9-digit format (e.g. 482901325 -> 482-901-325)
+  const norm = normalizeId(q);
+  if (peers.has(norm)) return peers.get(norm);
+
+  // 3. Match alias (case-insensitive, e.g. "mezie@mex", "boss-mezie", "laptop")
+  for (const peer of peers.values()) {
+    if (peer.alias && peer.alias.toLowerCase() === lower) {
+      return peer;
+    }
+  }
+  return null;
+}
+
 function sendTo(ws, message) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(message));
@@ -165,6 +186,39 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    case "set-alias": {
+      const peerId = socketToPeerId.get(ws);
+      const newAlias = (msg.alias || "").trim();
+
+      if (!peerId || !peers.has(peerId)) {
+        sendTo(ws, { type: "alias-error", message: "Device not registered." });
+        break;
+      }
+
+      if (newAlias) {
+        const existing = findPeer(newAlias);
+        if (existing && existing.id !== peerId) {
+          sendTo(ws, {
+            type: "alias-error",
+            message: `Alias "${newAlias}" is already taken by another desk.`
+          });
+          break;
+        }
+      }
+
+      const peer = peers.get(peerId);
+      peer.alias = newAlias || `MexDesk Device`;
+
+      sendTo(ws, {
+        type: "alias-updated",
+        alias: peer.alias,
+        success: true
+      });
+
+      console.log(`[MexDesk Server] Alias updated for ${peerId}: "${peer.alias}"`);
+      break;
+    }
+
     case "set-unattended-password": {
       const peerId = socketToPeerId.get(ws);
       if (peerId && peers.has(peerId)) {
@@ -178,18 +232,17 @@ function handleMessage(ws, msg) {
     }
 
     case "query-peer": {
-      const targetId = normalizeId(msg.targetId);
-      const targetPeer = peers.get(targetId);
+      const targetPeer = findPeer(msg.targetId);
       if (!targetPeer) {
         sendTo(ws, {
           type: "query-peer-result",
-          targetId,
+          targetId: msg.targetId,
           found: false
         });
       } else {
         sendTo(ws, {
           type: "query-peer-result",
-          targetId,
+          targetId: targetPeer.id,
           found: true,
           status: targetPeer.status,
           alias: targetPeer.alias,
@@ -201,26 +254,28 @@ function handleMessage(ws, msg) {
 
     case "call-user": {
       const callerId = socketToPeerId.get(ws);
-      const targetId = normalizeId(msg.targetId);
+      const queryTarget = msg.targetId;
 
       if (!callerId) {
         sendTo(ws, { type: "call-error", message: "You are not registered." });
         return;
       }
 
-      if (callerId === targetId) {
-        sendTo(ws, { type: "call-error", message: "Cannot connect to your own MexDesk ID." });
+      const targetPeer = findPeer(queryTarget);
+      if (!targetPeer) {
+        sendTo(ws, { type: "call-error", message: `Desk or Alias "${queryTarget}" is offline or not found.` });
         return;
       }
 
-      const targetPeer = peers.get(targetId);
-      if (!targetPeer) {
-        sendTo(ws, { type: "call-error", message: `Desk ${targetId} is offline or not found.` });
+      const targetId = targetPeer.id;
+
+      if (callerId === targetId) {
+        sendTo(ws, { type: "call-error", message: "Cannot connect to your own MexDesk ID or alias." });
         return;
       }
 
       if (targetPeer.status === "busy") {
-        sendTo(ws, { type: "call-error", message: `Desk ${targetId} is currently in another session.` });
+        sendTo(ws, { type: "call-error", message: `Desk "${targetPeer.alias || targetId}" is currently in another session.` });
         return;
       }
 

@@ -14,10 +14,15 @@ import {
   RefreshCw,
   Sparkles,
   Share2,
+  Pencil,
+  X,
+  Tag,
 } from "lucide-react";
 
 export function HomeScreen({
   myId,
+  myAlias = "",
+  onSaveAlias,
   initialConnectTo = "",
   signalingUrl = "",
   onConnect,
@@ -31,6 +36,8 @@ export function HomeScreen({
   const [remoteIdInput, setRemoteIdInput] = useState(initialConnectTo || "");
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isEditingAlias, setIsEditingAlias] = useState(false);
+  const [aliasInput, setAliasInput] = useState(myAlias || "");
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [pendingRemoteId, setPendingRemoteId] = useState("");
   const [inputPassword, setInputPassword] = useState("");
@@ -40,6 +47,14 @@ export function HomeScreen({
     navigator.clipboard.writeText(myId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveAliasSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (onSaveAlias) {
+      onSaveAlias(aliasInput.trim());
+    }
+    setIsEditingAlias(false);
   };
 
   const handleCopyInviteLink = () => {
@@ -112,7 +127,7 @@ export function HomeScreen({
               </span>
             </div>
 
-            {/* Big 9-Digit ID Display */}
+            {/* Big 9-Digit ID & Custom Alias Display */}
             <div className="bg-gradient-to-br from-slate-50 to-rose-50/30 rounded-xl p-4 border border-slate-200/80 mb-4 text-center">
               <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block mb-1">
                 Your MexDesk Address
@@ -122,6 +137,55 @@ export function HomeScreen({
                   <span>{myId}</span>
                 ) : (
                   <span className="text-slate-300 animate-pulse">--- --- ---</span>
+                )}
+              </div>
+
+              {/* Customizable Alias Row */}
+              <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex items-center justify-center space-x-2">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Alias:</span>
+                {isEditingAlias ? (
+                  <form onSubmit={handleSaveAliasSubmit} className="flex items-center space-x-1">
+                    <input
+                      type="text"
+                      value={aliasInput}
+                      onChange={(e) => setAliasInput(e.target.value)}
+                      placeholder="e.g. boss-mezie@mex"
+                      className="px-2 py-0.5 text-xs bg-white border border-mexdesk-red rounded-lg font-medium text-slate-800 focus:outline-none w-36"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      className="p-1 rounded bg-mexdesk-red text-white hover:bg-mexdesk-crimson transition text-xs"
+                      title="Save alias"
+                    >
+                      <Check size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAlias(false)}
+                      className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300 transition text-xs"
+                      title="Cancel"
+                    >
+                      <X size={12} />
+                    </button>
+                  </form>
+                ) : (
+                  <div className="flex items-center space-x-1.5">
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                      myAlias
+                        ? "bg-rose-50 text-mexdesk-red border-rose-200"
+                        : "bg-slate-100 text-slate-500 border-slate-200"
+                    }`}>
+                      {myAlias ? myAlias : "No alias set"}
+                    </span>
+                    <button
+                      onClick={() => { setAliasInput(myAlias); setIsEditingAlias(true); }}
+                      className="p-1 rounded-md hover:bg-slate-200/80 text-slate-400 hover:text-slate-700 transition"
+                      title="Set or edit your custom alias"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -198,7 +262,7 @@ export function HomeScreen({
                 </div>
                 <div>
                   <h2 className="text-sm font-semibold text-slate-800">Remote Desk</h2>
-                  <p className="text-[11px] text-slate-400">Enter the remote address to connect</p>
+                  <p className="text-[11px] text-slate-400">Enter 9-digit address or custom alias to connect</p>
                 </div>
               </div>
               <span className="px-2 py-0.5 rounded-full bg-mexdesk-softred text-mexdesk-crimson text-[11px] font-medium">
@@ -210,14 +274,14 @@ export function HomeScreen({
             <div className="space-y-3 mb-4">
               <div>
                 <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
-                  Remote Address (9 digits)
+                  Remote Address or Alias
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={remoteIdInput}
                     onChange={(e) => setRemoteIdInput(e.target.value)}
-                    placeholder="e.g. 482-901-325"
+                    placeholder="e.g. 482-901-325 or boss-mezie@mex"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-mono font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-mexdesk-red focus:border-transparent transition"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleStartConnect("full-control");

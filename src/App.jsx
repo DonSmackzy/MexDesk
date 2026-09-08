@@ -11,6 +11,7 @@ import { Lock, ArrowRight, X, AlertCircle } from "lucide-react";
 export function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [myId, setMyId] = useState(localStorage.getItem("mexdesk_my_id") || "");
+  const [myAlias, setMyAlias] = useState(localStorage.getItem("mexdesk_my_alias") || "");
   const [unattendedPassword, setUnattendedPassword] = useState(
     localStorage.getItem("mexdesk_unattended_pw") || ""
   );
@@ -78,6 +79,20 @@ export function App() {
     client.on("registered", (data) => {
       setMyId(data.id);
       localStorage.setItem("mexdesk_my_id", data.id);
+      if (data.alias && !myAlias) {
+        setMyAlias(data.alias);
+        localStorage.setItem("mexdesk_my_alias", data.alias);
+      }
+    });
+
+    client.on("alias-updated", (data) => {
+      setMyAlias(data.alias);
+      localStorage.setItem("mexdesk_my_alias", data.alias);
+    });
+
+    client.on("alias-error", (data) => {
+      setErrorMessage(data.message || "Failed to set alias.");
+      setTimeout(() => setErrorMessage(""), 4000);
     });
 
     // Incoming Call Handler
@@ -161,12 +176,18 @@ export function App() {
       handleEndSession(data.reason || "Session ended by remote desk.");
     });
 
-    client.connect(myId || null, "MexDesk Device", unattendedPassword || null);
+    client.connect(myId || null, myAlias || "MexDesk Device", unattendedPassword || null);
 
     return () => {
       client.disconnect();
     };
   }, [signalingUrl]);
+
+  const handleSaveAlias = (newAlias) => {
+    if (signalingRef.current) {
+      signalingRef.current.setAlias(newAlias);
+    }
+  };
 
   const addRecentSession = (id) => {
     const updated = [
@@ -328,6 +349,8 @@ export function App() {
       {sessionState === "home" && (
         <HomeScreen
           myId={myId}
+          myAlias={myAlias}
+          onSaveAlias={handleSaveAlias}
           initialConnectTo={initialConnectTo}
           signalingUrl={signalingUrl}
           onConnect={(id, type) => handleStartConnect(id, type)}

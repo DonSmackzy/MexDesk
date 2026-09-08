@@ -173,6 +173,10 @@ export class SignalingClient {
     this.send({ type: "set-unattended-password", password });
   }
 
+  setAlias(alias) {
+    this.send({ type: "set-alias", alias });
+  }
+
   queryPeer(targetId) {
     this.send({ type: "query-peer", targetId });
   }
