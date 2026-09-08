@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="mexGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF4141"/>
+      <stop offset="100%" stop-color="#D01919"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#mexGrad)" />
+  <!-- Overlapping screen diamonds like AnyDesk inspired logo -->
+  <path d="M24 10 L35 21 L24 32 L13 21 Z" fill="#FFFFFF" opacity="0.95" />
+  <path d="M24 16 L31 23 L24 30 L17 23 Z" fill="url(#mexGrad)" />
+  <path d="M24 22 L35 33 L24 44 L13 33 Z" fill="#FFFFFF" opacity="0.85" />
+  <circle cx="24" cy="24" r="3" fill="#FFFFFF" />
+</svg>
