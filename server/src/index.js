@@ -156,10 +156,21 @@ function handleMessage(ws, msg) {
 
   switch (type) {
     case "register": {
-      // Client requesting or re-claiming an ID
+      // Client requesting or re-claiming its permanent static device ID
       let assignedId = msg.requestedId ? normalizeId(msg.requestedId) : null;
-      if (!assignedId || peers.has(assignedId)) {
+
+      if (!assignedId) {
         assignedId = generateMexDeskId();
+      } else {
+        // If an existing socket is registered with this ID (e.g. fast browser refresh/reconnect)
+        const existingPeer = peers.get(assignedId);
+        if (existingPeer && existingPeer.ws !== ws) {
+          try {
+            existingPeer.ws.close();
+          } catch (e) {}
+          peers.delete(assignedId);
+          socketToPeerId.delete(existingPeer.ws);
+        }
       }
 
       const peerData = {

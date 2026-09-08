@@ -8,9 +8,20 @@ import { SignalingClient } from "./services/SignalingClient";
 import { WebRTCConnection } from "./services/WebRTCConnection";
 import { Lock, ArrowRight, X, AlertCircle } from "lucide-react";
 
+function getOrCreateStaticDeviceId() {
+  let id = localStorage.getItem("mexdesk_device_static_id") || localStorage.getItem("mexdesk_my_id");
+  if (!id || id.length < 9) {
+    const raw = Math.floor(100000000 + Math.random() * 900000000).toString();
+    id = raw.replace(/(\d{3})(\d{3})(\d{3})/, "$1-$2-$3");
+    localStorage.setItem("mexdesk_device_static_id", id);
+    localStorage.setItem("mexdesk_my_id", id);
+  }
+  return id;
+}
+
 export function App() {
   const [isConnected, setIsConnected] = useState(false);
-  const [myId, setMyId] = useState(localStorage.getItem("mexdesk_my_id") || "");
+  const [myId, setMyId] = useState(() => getOrCreateStaticDeviceId());
   const [myAlias, setMyAlias] = useState(localStorage.getItem("mexdesk_my_alias") || "");
   const [unattendedPassword, setUnattendedPassword] = useState(
     localStorage.getItem("mexdesk_unattended_pw") || ""
