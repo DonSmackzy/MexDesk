@@ -29,6 +29,7 @@ export function HomeScreen({
   onFileTransferOnly,
   recentSessions,
   onRemoveRecent,
+  onRenameRecent,
   unattendedPassword,
   onConfigurePassword,
   onOpenSettings,
@@ -38,6 +39,8 @@ export function HomeScreen({
   const [copiedLink, setCopiedLink] = useState(false);
   const [isEditingAlias, setIsEditingAlias] = useState(false);
   const [aliasInput, setAliasInput] = useState(myAlias || "");
+  const [editingRecentId, setEditingRecentId] = useState(null);
+  const [editingRecentAliasInput, setEditingRecentAliasInput] = useState("");
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [pendingRemoteId, setPendingRemoteId] = useState("");
   const [inputPassword, setInputPassword] = useState("");
@@ -349,44 +352,100 @@ export function HomeScreen({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {recentSessions.map((session) => (
-              <div
-                key={session.id}
-                className="group p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-slate-300 hover:shadow-sm transition flex items-center justify-between"
-              >
-                <div className="flex items-center space-x-3 overflow-hidden">
-                  <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-mexdesk-red shrink-0">
-                    <Monitor size={20} />
-                  </div>
-                  <div className="overflow-hidden">
-                    <h3 className="text-xs font-semibold text-slate-800 truncate">
-                      {session.alias || "Remote Desk"}
-                    </h3>
-                    <p className="text-[11px] font-mono text-slate-400">{session.id}</p>
-                    <span className="text-[10px] text-slate-400 block">
-                      {new Date(session.timestamp).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
+            {recentSessions.map((session) => {
+              const isEditingThis = editingRecentId === session.id;
 
-                <div className="flex items-center space-x-1 shrink-0 opacity-80 group-hover:opacity-100">
-                  <button
-                    onClick={() => handleStartConnect("full-control", session.id)}
-                    className="p-2 rounded-lg bg-mexdesk-red hover:bg-mexdesk-crimson text-white transition shadow-sm"
-                    title="Reconnect"
-                  >
-                    <ArrowRight size={14} />
-                  </button>
-                  <button
-                    onClick={() => onRemoveRecent(session.id)}
-                    className="p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-rose-600 transition"
-                    title="Remove from history"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+              return (
+                <div
+                  key={session.id}
+                  className="group p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-slate-300 hover:shadow-sm transition flex items-center justify-between"
+                >
+                  <div className="flex items-center space-x-3 overflow-hidden flex-1 min-w-0 mr-2">
+                    <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-mexdesk-red shrink-0">
+                      <Monitor size={20} />
+                    </div>
+
+                    <div className="overflow-hidden flex-1 min-w-0">
+                      {isEditingThis ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (onRenameRecent) {
+                              onRenameRecent(session.id, editingRecentAliasInput);
+                            }
+                            setEditingRecentId(null);
+                          }}
+                          className="flex items-center space-x-1"
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingRecentAliasInput}
+                            onChange={(e) => setEditingRecentAliasInput(e.target.value)}
+                            placeholder="Remote Desk Alias"
+                            className="w-full px-2 py-0.5 text-xs bg-white border border-mexdesk-red rounded font-medium text-slate-800 focus:outline-none"
+                          />
+                          <button
+                            type="submit"
+                            className="p-1 text-emerald-600 hover:text-emerald-700 font-bold text-xs"
+                            title="Save Alias"
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingRecentId(null)}
+                            className="p-1 text-slate-400 hover:text-slate-600 text-xs"
+                            title="Cancel"
+                          >
+                            <X size={13} />
+                          </button>
+                        </form>
+                      ) : (
+                        <div>
+                          <div className="flex items-center space-x-1.5 group/alias">
+                            <h3 className="text-xs font-semibold text-slate-800 truncate">
+                              {session.alias || "Remote Desk"}
+                            </h3>
+                            <button
+                              onClick={() => {
+                                setEditingRecentId(session.id);
+                                setEditingRecentAliasInput(session.alias || `Desk ${session.id}`);
+                              }}
+                              className="opacity-0 group-hover/alias:opacity-100 p-0.5 text-slate-400 hover:text-mexdesk-red transition"
+                              title="Rename remote client alias"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          </div>
+                          <p className="text-[11px] font-mono text-slate-400">{session.id}</p>
+                          <span className="text-[10px] text-slate-400 block">
+                            {new Date(session.timestamp).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-1 shrink-0 opacity-80 group-hover:opacity-100">
+                    <button
+                      onClick={() => handleStartConnect("full-control", session.id)}
+                      className="p-2 rounded-lg bg-mexdesk-red hover:bg-mexdesk-crimson text-white transition shadow-sm"
+                      title="Connect"
+                    >
+                      <ArrowRight size={14} />
+                    </button>
+                    <button
+                      onClick={() => onRemoveRecent(session.id)}
+                      className="p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-rose-600 transition"
+                      title="Remove from history"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

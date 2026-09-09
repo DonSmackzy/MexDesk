@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
-  PhoneCall,
+  Monitor,
+  ShieldCheck,
   Check,
   X,
   MousePointer,
@@ -18,7 +19,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
     audio: true,
   });
 
-  // Play ringing sound
+  // Play subtle authorization notification tone
   useEffect(() => {
     let interval = null;
     const playRing = () => {
@@ -27,9 +28,9 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "sine";
-        osc.frequency.setValueAtTime(440, ctx.currentTime);
-        osc.frequency.setValueAtTime(480, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.frequency.setValueAtTime(520, ctx.currentTime);
+        osc.frequency.setValueAtTime(650, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -39,7 +40,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
     };
 
     playRing();
-    interval = setInterval(playRing, 2000);
+    interval = setInterval(playRing, 2500);
     return () => clearInterval(interval);
   }, []);
 
@@ -50,17 +51,18 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
   return (
     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        {/* Top Header Banner */}
+        {/* Top Header Banner - AnyDesk Style Connection Authorization Header */}
         <div className="bg-gradient-to-r from-mexdesk-red to-mexdesk-crimson p-5 text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center animate-bounce">
-              <PhoneCall size={20} className="text-white" />
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center relative">
+              <Monitor size={22} className="text-white" />
+              <ShieldCheck size={12} className="text-emerald-300 absolute -bottom-1 -right-1 bg-mexdesk-crimson rounded-full" />
             </div>
             <div>
               <span className="text-xs uppercase tracking-wider font-semibold opacity-80">
-                Incoming Connection
+                Incoming Connection Request
               </span>
-              <h2 className="text-lg font-bold">Remote Desk Request</h2>
+              <h2 className="text-lg font-bold">Remote Desktop Access</h2>
             </div>
           </div>
         </div>

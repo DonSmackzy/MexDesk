@@ -200,11 +200,22 @@ export function App() {
     }
   };
 
-  const addRecentSession = (id) => {
+  const addRecentSession = (id, customAlias = null) => {
+    const existing = recentSessions.find((s) => s.id === id);
+    const aliasToUse = customAlias || existing?.alias || `Desk ${id}`;
     const updated = [
-      { id, alias: `Desk ${id}`, timestamp: Date.now() },
+      { id, alias: aliasToUse, timestamp: Date.now() },
       ...recentSessions.filter((s) => s.id !== id),
     ].slice(0, 10);
+    setRecentSessions(updated);
+    localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
+  };
+
+  const handleRenameRecent = (id, newAlias) => {
+    const aliasToUse = (newAlias || "").trim() || `Desk ${id}`;
+    const updated = recentSessions.map((s) =>
+      s.id === id ? { ...s, alias: aliasToUse } : s
+    );
     setRecentSessions(updated);
     localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
   };
@@ -227,14 +238,38 @@ export function App() {
       // Capture host screen stream
       let stream;
       if (window.mexdeskAPI?.isElectron) {
-        // Under Electron: capture screen using getDisplayMedia or desktopCapturer
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: "always",
-            frameRate: { ideal: 60, max: 60 },
-          },
-          audio: permissions.audio,
-        });
+        // Under Electron: auto-select primary screen without showing screen picker dialog
+        try {
+          const sources = await window.mexdeskAPI.getScreenSources();
+          const primaryScreen = sources.find((s) => s.id.startsWith("screen")) || sources[0];
+
+          if (primaryScreen) {
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: {
+                mandatory: {
+                  chromeMediaSource: "desktop",
+                  chromeMediaSourceId: primaryScreen.id,
+                  minWidth: 1280,
+                  maxWidth: 3840,
+                  minHeight: 720,
+                  maxHeight: 2160,
+                  maxFrameRate: 60,
+                },
+              },
+            });
+          }
+        } catch (err) {
+          console.warn("[MexDesk] Primary screen direct capture fallback:", err.message);
+        }
+
+        // Fallback to getDisplayMedia if direct capture fails
+        if (!stream) {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: "always", frameRate: { ideal: 60, max: 60 } },
+            audio: permissions.audio,
+          });
+        }
       } else {
         // Under Web / Browser: standard screen capture prompt
         stream = await navigator.mediaDevices.getDisplayMedia({
@@ -368,6 +403,7 @@ export function App() {
           onFileTransferOnly={(id) => handleStartConnect(id, "file-transfer-only")}
           recentSessions={recentSessions}
           onRemoveRecent={removeRecentSession}
+          onRenameRecent={handleRenameRecent}
           unattendedPassword={unattendedPassword}
           onConfigurePassword={() => setShowSettings(true)}
           onOpenSettings={() => setShowSettings(true)}

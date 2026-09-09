@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  PhoneOff,
+  Square,
   Maximize2,
   Minimize2,
   FolderSync,
@@ -342,8 +342,8 @@ export function RemoteViewer({
           onClick={onDisconnect}
           className="flex items-center space-x-1 px-3 py-1 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-full shadow-sm transition"
         >
-          <PhoneOff size={13} />
-          <span>End</span>
+          <Square size={12} className="fill-white" />
+          <span>Disconnect</span>
         </button>
       </div>
 
