@@ -26,7 +26,10 @@ export class WebRTCConnection {
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
-      { urls: "stun:stun.services.mozilla.com" }
+      { urls: "stun:stun3.l.google.com:19302" },
+      { urls: "stun:stun4.l.google.com:19302" },
+      { urls: "stun:stun.services.mozilla.com" },
+      { urls: "stun:global.stun.twilio.com:3478" }
     ];
   }
 
@@ -65,6 +68,17 @@ export class WebRTCConnection {
         this.startStatsMonitoring();
       } else if (state === "disconnected" || state === "failed" || state === "closed") {
         this.stopStatsMonitoring();
+      }
+    };
+
+    this.peerConnection.oniceconnectionstatechange = () => {
+      const iceState = this.peerConnection.iceConnectionState;
+      if (iceState === "failed") {
+        try {
+          if (typeof this.peerConnection.restartIce === "function") {
+            this.peerConnection.restartIce();
+          }
+        } catch (e) {}
       }
     };
 

@@ -138,9 +138,19 @@ export function App() {
         setUnreadChatCount((prev) => prev + 1);
       });
 
+      let callerDisconnectTimer = null;
       rtc.on("connection-state", (state) => {
-        if (state === "disconnected" || state === "closed" || state === "failed") {
-          handleEndSession("Connection disconnected");
+        if (state === "connected") {
+          if (callerDisconnectTimer) {
+            clearTimeout(callerDisconnectTimer);
+            callerDisconnectTimer = null;
+          }
+        } else if (state === "failed" || state === "closed") {
+          if (!callerDisconnectTimer) {
+            callerDisconnectTimer = setTimeout(() => {
+              handleEndSession("Connection disconnected");
+            }, 4000);
+          }
         }
       });
 
@@ -298,9 +308,19 @@ export function App() {
         setUnreadChatCount((prev) => prev + 1);
       });
 
+      let hostDisconnectTimer = null;
       rtc.on("connection-state", (state) => {
-        if (state === "disconnected" || state === "closed") {
-          handleEndSession("Remote desk closed connection");
+        if (state === "connected") {
+          if (hostDisconnectTimer) {
+            clearTimeout(hostDisconnectTimer);
+            hostDisconnectTimer = null;
+          }
+        } else if (state === "failed" || state === "closed") {
+          if (!hostDisconnectTimer) {
+            hostDisconnectTimer = setTimeout(() => {
+              handleEndSession("Remote desk closed connection");
+            }, 4000);
+          }
         }
       });
 

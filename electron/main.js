@@ -61,6 +61,26 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    // Set default display media handler for automatic primary screen capture without picker prompts
+    if (session?.defaultSession?.setDisplayMediaRequestHandler) {
+      session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        desktopCapturer
+          .getSources({ types: ["screen"] })
+          .then((sources) => {
+            const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
+            if (primarySource) {
+              callback({ video: primarySource });
+            } else {
+              callback({ video: request.video });
+            }
+          })
+          .catch((err) => {
+            console.error("[MexDesk Main] DisplayMedia handler error:", err);
+            callback({});
+          });
+      });
+    }
+
     createWindow();
 
     app.on("activate", () => {
