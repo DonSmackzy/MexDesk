@@ -1,33 +1,112 @@
-// Input Controller for MexDesk remote mouse and keyboard events
-// Provides input simulation and coordinate translation
+// electron/inputController.js - Production Native Input Injection Engine for MexDesk
+// Uses Win32 user32/kernel32 APIs via koffi for direct desktop input simulation
 
 class InputController {
   constructor() {
+    this.isWindows = process.platform === "win32";
+    this.isNativeAvailable = false;
     this.screenSize = { width: 1920, height: 1080 };
-    this.hasNutJs = false;
-    this.nut = null;
 
-    // Optional dynamic load of @nut-tree/nut-js if available
-    try {
-      this.nut = require("@nut-tree/nut-js");
-      this.hasNutJs = true;
-      this.nut.mouse.config.autoDelayMs = 0;
-      this.nut.keyboard.config.autoDelayMs = 0;
-      console.log("[MexDesk Input] Native input injection engine loaded via nut-js");
-    } catch (e) {
-      console.log("[MexDesk Input] Nut-js not found, using OS input fallback / synthetic dispatcher");
+    // Win32 API functions
+    this.user32 = null;
+    this.kernel32 = null;
+    this.GetSystemMetrics = null;
+    this.SetCursorPos = null;
+    this.mouse_event = null;
+    this.keybd_event = null;
+    this.OpenInputDesktop = null;
+    this.SetThreadDesktop = null;
+    this.CloseDesktop = null;
+
+    if (this.isWindows) {
+      try {
+        const koffi = require("koffi");
+        this.user32 = koffi.load("user32.dll");
+        this.kernel32 = koffi.load("kernel32.dll");
+
+        this.GetSystemMetrics = this.user32.func("int GetSystemMetrics(int nIndex)");
+        this.SetCursorPos = this.user32.func("int SetCursorPos(int X, int Y)");
+        this.mouse_event = this.user32.func("void mouse_event(uint32 dwFlags, uint32 dx, uint32 dy, uint32 dwData, uintptr dwExtraInfo)");
+        this.keybd_event = this.user32.func("void keybd_event(uint8 bVk, uint8 bScan, uint32 dwFlags, uintptr dwExtraInfo)");
+        this.OpenInputDesktop = this.user32.func("uintptr OpenInputDesktop(uint32 dwFlags, int fInherit, uint32 dwDesiredAccess)");
+        this.SetThreadDesktop = this.user32.func("int SetThreadDesktop(uintptr hDesktop)");
+        this.CloseDesktop = this.user32.func("int CloseDesktop(uintptr hDesktop)");
+
+        this.isNativeAvailable = true;
+        this.refreshScreenMetrics();
+        console.log(`[MexDesk Input] Native Win32 input injection initialized successfully (${this.screenSize.width}x${this.screenSize.height})`);
+      } catch (err) {
+        console.warn("[MexDesk Input] Native input injection unavailable:", err.message);
+      }
+    }
+  }
+
+  refreshScreenMetrics() {
+    if (this.GetSystemMetrics) {
+      const virtW = this.GetSystemMetrics(78) || this.GetSystemMetrics(0); // SM_CXVIRTUALSCREEN or SM_CXSCREEN
+      const virtH = this.GetSystemMetrics(79) || this.GetSystemMetrics(1); // SM_CYVIRTUALSCREEN or SM_CYSCREEN
+      if (virtW > 0 && virtH > 0) {
+        this.screenSize = { width: virtW, height: virtH };
+      }
     }
   }
 
   setScreenSize(width, height) {
-    this.screenSize = { width, height };
+    if (width > 0 && height > 0) {
+      this.screenSize = { width, height };
+    }
   }
 
-  // Handle incoming normalized input events
+  // Ensure current thread is attached to the interactive input desktop
+  attachToInputDesktop() {
+    if (!this.OpenInputDesktop || !this.SetThreadDesktop) return;
+    try {
+      const DESKTOP_ALL = 0x01FF;
+      const hDesk = this.OpenInputDesktop(0, 0, DESKTOP_ALL);
+      if (hDesk) {
+        this.SetThreadDesktop(hDesk);
+        if (this.CloseDesktop) {
+          this.CloseDesktop(hDesk);
+        }
+      }
+    } catch (e) {
+      // Ignore desktop switch failures
+    }
+  }
+
+  translateCoords(normX, normY) {
+    let originX = 0;
+    let originY = 0;
+    if (this.GetSystemMetrics) {
+      originX = this.GetSystemMetrics(76); // SM_XVIRTUALSCREEN
+      originY = this.GetSystemMetrics(77); // SM_YVIRTUALSCREEN
+    }
+
+    const clampedX = Math.max(0.0, Math.min(1.0, normX));
+    const clampedY = Math.max(0.0, Math.min(1.0, normY));
+
+    const x = Math.round(originX + (clampedX * this.screenSize.width));
+    const y = Math.round(originY + (clampedY * this.screenSize.height));
+    return { x, y };
+  }
+
+  // Mouse constants
+  static MOUSEEVENTF_MOVE = 0x0001;
+  static MOUSEEVENTF_LEFTDOWN = 0x0002;
+  static MOUSEEVENTF_LEFTUP = 0x0004;
+  static MOUSEEVENTF_RIGHTDOWN = 0x0008;
+  static MOUSEEVENTF_RIGHTUP = 0x0010;
+  static MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+  static MOUSEEVENTF_MIDDLEUP = 0x0040;
+  static MOUSEEVENTF_WHEEL = 0x0800;
+  static KEYEVENTF_KEYUP = 0x0002;
+
   async handleEvent(event) {
     if (!event || !event.type) return;
 
     try {
+      this.attachToInputDesktop();
+
       switch (event.type) {
         case "mouse_move":
           await this.handleMouseMove(event);
@@ -60,121 +139,183 @@ class InputController {
           break;
       }
     } catch (err) {
-      console.error("[MexDesk Input] Event handling error:", err.message);
+      console.error("[MexDesk Input] Native event dispatch error:", err.message);
     }
-  }
-
-  translateCoords(normX, normY) {
-    const x = Math.round(normX * this.screenSize.width);
-    const y = Math.round(normY * this.screenSize.height);
-    return { x: Math.max(0, Math.min(x, this.screenSize.width - 1)), y: Math.max(0, Math.min(y, this.screenSize.height - 1)) };
   }
 
   async handleMouseMove({ x, y }) {
-    const { x: targetX, y: targetY } = this.translateCoords(x, y);
-    if (this.hasNutJs && this.nut) {
-      const { Point } = this.nut;
-      await this.nut.mouse.setPosition(new Point(targetX, targetY));
-    }
+    if (!this.SetCursorPos) return;
+    const coords = this.translateCoords(x, y);
+    this.SetCursorPos(coords.x, coords.y);
   }
 
   async handleMouseDown({ button }) {
-    if (this.hasNutJs && this.nut) {
-      const btn = button === 2 ? this.nut.Button.RIGHT : button === 1 ? this.nut.Button.MIDDLE : this.nut.Button.LEFT;
-      await this.nut.mouse.pressButton(btn);
-    }
+    if (!this.mouse_event) return;
+    const flag = button === 2
+      ? InputController.MOUSEEVENTF_RIGHTDOWN
+      : button === 1
+      ? InputController.MOUSEEVENTF_MIDDLEDOWN
+      : InputController.MOUSEEVENTF_LEFTDOWN;
+    this.mouse_event(flag, 0, 0, 0, 0);
   }
 
   async handleMouseUp({ button }) {
-    if (this.hasNutJs && this.nut) {
-      const btn = button === 2 ? this.nut.Button.RIGHT : button === 1 ? this.nut.Button.MIDDLE : this.nut.Button.LEFT;
-      await this.nut.mouse.releaseButton(btn);
-    }
+    if (!this.mouse_event) return;
+    const flag = button === 2
+      ? InputController.MOUSEEVENTF_RIGHTUP
+      : button === 1
+      ? InputController.MOUSEEVENTF_MIDDLEUP
+      : InputController.MOUSEEVENTF_LEFTUP;
+    this.mouse_event(flag, 0, 0, 0, 0);
   }
 
   async handleClick({ x, y, button }) {
-    const { x: targetX, y: targetY } = this.translateCoords(x, y);
-    if (this.hasNutJs && this.nut) {
-      const { Point, Button } = this.nut;
-      await this.nut.mouse.setPosition(new Point(targetX, targetY));
-      const btn = button === 2 ? Button.RIGHT : button === 1 ? Button.MIDDLE : Button.LEFT;
-      await this.nut.mouse.click(btn);
+    if (x !== undefined && y !== undefined) {
+      await this.handleMouseMove({ x, y });
     }
+    await this.handleMouseDown({ button });
+    await this.handleMouseUp({ button });
   }
 
   async handleDblClick({ x, y }) {
-    const { x: targetX, y: targetY } = this.translateCoords(x, y);
-    if (this.hasNutJs && this.nut) {
-      const { Point, Button } = this.nut;
-      await this.nut.mouse.setPosition(new Point(targetX, targetY));
-      await this.nut.mouse.doubleClick(Button.LEFT);
+    if (x !== undefined && y !== undefined) {
+      await this.handleMouseMove({ x, y });
     }
+    await this.handleMouseDown({ button: 0 });
+    await this.handleMouseUp({ button: 0 });
+    await this.handleMouseDown({ button: 0 });
+    await this.handleMouseUp({ button: 0 });
   }
 
   async handleScroll({ deltaY }) {
-    if (this.hasNutJs && this.nut) {
-      if (deltaY > 0) {
-        await this.nut.mouse.scrollDown(Math.abs(deltaY) > 50 ? 5 : 2);
-      } else {
-        await this.nut.mouse.scrollUp(Math.abs(deltaY) > 50 ? 5 : 2);
-      }
+    if (!this.mouse_event) return;
+    const wheelDelta = deltaY < 0 ? 120 : -120;
+    this.mouse_event(InputController.MOUSEEVENTF_WHEEL, 0, 0, wheelDelta, 0);
+  }
+
+  async handleKeyDown({ code, key }) {
+    if (!this.keybd_event) return;
+    const vk = this.mapVirtualKey(code, key);
+    if (vk) {
+      this.keybd_event(vk, 0, 0, 0);
     }
   }
 
-  async handleKeyDown({ key, code }) {
-    if (this.hasNutJs && this.nut) {
-      const nutKey = this.mapNutKey(code || key);
-      if (nutKey) {
-        await this.nut.keyboard.pressKey(nutKey);
-      }
-    }
-  }
-
-  async handleKeyUp({ key, code }) {
-    if (this.hasNutJs && this.nut) {
-      const nutKey = this.mapNutKey(code || key);
-      if (nutKey) {
-        await this.nut.keyboard.releaseKey(nutKey);
-      }
+  async handleKeyUp({ code, key }) {
+    if (!this.keybd_event) return;
+    const vk = this.mapVirtualKey(code, key);
+    if (vk) {
+      this.keybd_event(vk, 0, InputController.KEYEVENTF_KEYUP, 0);
     }
   }
 
   async handleShortcut({ name }) {
-    if (name === "ctrl_alt_del") {
-      console.log("[MexDesk Input] Ctrl+Alt+Del shortcut triggered");
-    } else if (name === "alt_tab") {
-      if (this.hasNutJs && this.nut) {
-        const { Key } = this.nut;
-        await this.nut.keyboard.pressKey(Key.LeftAlt, Key.Tab);
-        await this.nut.keyboard.releaseKey(Key.Tab, Key.LeftAlt);
-      }
+    if (!this.keybd_event) return;
+    if (name === "alt_tab") {
+      const VK_ALT = 0x12;
+      const VK_TAB = 0x09;
+      this.keybd_event(VK_ALT, 0, 0, 0);
+      this.keybd_event(VK_TAB, 0, 0, 0);
+      this.keybd_event(VK_TAB, 0, InputController.KEYEVENTF_KEYUP, 0);
+      this.keybd_event(VK_ALT, 0, InputController.KEYEVENTF_KEYUP, 0);
     }
   }
 
-  mapNutKey(code) {
-    if (!this.nut) return null;
-    const { Key } = this.nut;
-    const mapping = {
-      Enter: Key.Enter,
-      Escape: Key.Escape,
-      Backspace: Key.Backspace,
-      Tab: Key.Tab,
-      Space: Key.Space,
-      ArrowUp: Key.Up,
-      ArrowDown: Key.Down,
-      ArrowLeft: Key.Left,
-      ArrowRight: Key.Right,
-      ControlLeft: Key.LeftControl,
-      ControlRight: Key.RightControl,
-      ShiftLeft: Key.LeftShift,
-      ShiftRight: Key.RightShift,
-      AltLeft: Key.LeftAlt,
-      AltRight: Key.RightAlt,
-      MetaLeft: Key.LeftSuper,
-      MetaRight: Key.RightSuper,
-      Delete: Key.Delete,
+  mapVirtualKey(code, key) {
+    // Alphanumeric keys (A-Z)
+    if (code && code.startsWith("Key")) {
+      const letter = code.slice(3).toUpperCase();
+      return letter.charCodeAt(0);
+    }
+
+    // Number row (Digit0 - Digit9)
+    if (code && code.startsWith("Digit")) {
+      const digit = code.slice(5);
+      return 0x30 + parseInt(digit, 10);
+    }
+
+    // Numpad digits (Numpad0 - Numpad9)
+    if (code && code.startsWith("Numpad") && code.length === 7 && !isNaN(code.slice(6))) {
+      const num = code.slice(6);
+      return 0x60 + parseInt(num, 10);
+    }
+
+    // Function keys (F1 - F24)
+    if (code && /^F([1-9]|1[0-9]|2[0-4])$/.test(code)) {
+      const fNum = parseInt(code.slice(1), 10);
+      return 0x70 + (fNum - 1);
+    }
+
+    // Explicit mapping table for standard codes
+    const codeMap = {
+      // Standard controls
+      Enter: 0x0D,
+      NumpadEnter: 0x0D,
+      Escape: 0x1B,
+      Backspace: 0x08,
+      Tab: 0x09,
+      Space: 0x20,
+
+      // Navigation & editing
+      Insert: 0x2D,
+      Delete: 0x2E,
+      Home: 0x24,
+      End: 0x23,
+      PageUp: 0x21,
+      PageDown: 0x22,
+      ArrowLeft: 0x25,
+      ArrowUp: 0x26,
+      ArrowRight: 0x27,
+      ArrowDown: 0x28,
+
+      // Modifiers
+      ShiftLeft: 0x10,
+      ShiftRight: 0x10,
+      ControlLeft: 0x11,
+      ControlRight: 0x11,
+      AltLeft: 0x12,
+      AltRight: 0x12,
+      MetaLeft: 0x5B,
+      MetaRight: 0x5C,
+      ContextMenu: 0x5D,
+      CapsLock: 0x14,
+      NumLock: 0x90,
+      ScrollLock: 0x91,
+
+      // Punctuation / OEM
+      Minus: 0xBD,
+      Equal: 0xBB,
+      BracketLeft: 0xDB,
+      BracketRight: 0xDD,
+      Backslash: 0xDC,
+      Semicolon: 0xBA,
+      Quote: 0xDE,
+      Comma: 0xBC,
+      Period: 0xBE,
+      Slash: 0xBF,
+      Backquote: 0xC0,
+
+      // Numpad math
+      NumpadAdd: 0x6B,
+      NumpadSubtract: 0x6D,
+      NumpadMultiply: 0x6A,
+      NumpadDivide: 0x6F,
+      NumpadDecimal: 0x6E,
     };
-    return mapping[code] || null;
+
+    if (code && codeMap[code]) {
+      return codeMap[code];
+    }
+
+    // Fallback single character mapping
+    if (key && key.length === 1) {
+      const upper = key.toUpperCase();
+      const codePoint = upper.charCodeAt(0);
+      if (codePoint >= 0x41 && codePoint <= 0x5A) return codePoint; // A-Z
+      if (codePoint >= 0x30 && codePoint <= 0x39) return codePoint; // 0-9
+    }
+
+    return null;
   }
 }
 

@@ -90,6 +90,10 @@ export function App() {
     client.on("registered", (data) => {
       setMyId(data.id);
       localStorage.setItem("mexdesk_my_id", data.id);
+      localStorage.setItem("mexdesk_device_static_id", data.id);
+      if (data.authToken) {
+        localStorage.setItem("mexdesk_device_token", data.authToken);
+      }
       if (data.alias && !myAlias) {
         setMyAlias(data.alias);
         localStorage.setItem("mexdesk_my_alias", data.alias);
@@ -168,6 +172,17 @@ export function App() {
     client.on("call-error", (data) => {
       setIsCallingModal(false);
       setErrorMessage(data.message || "Connection error.");
+      setTimeout(() => setErrorMessage(""), 4000);
+    });
+
+    client.on("password-required", (data) => {
+      setIsCallingModal(false);
+      setPasswordChallenge(data);
+      setChallengePasswordInput("");
+    });
+
+    client.on("server-error", (data) => {
+      setErrorMessage(data.message || "Server error.");
       setTimeout(() => setErrorMessage(""), 4000);
     });
 
@@ -508,6 +523,77 @@ export function App() {
           onSaveSignalingUrl={handleSaveSignalingUrl}
           onClose={() => setShowSettings(false)}
         />
+      )}
+
+      {/* Password Challenge Modal for Unattended Access */}
+      {passwordChallenge && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 w-full max-w-sm space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
+                <Lock size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Authentication Required</h3>
+                <p className="text-[11px] text-slate-500">
+                  Desk <span className="font-mono text-mexdesk-red font-semibold">{passwordChallenge.targetAlias || passwordChallenge.targetId}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This desk requires an unattended access password before establishing a remote session.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!challengePasswordInput.trim()) return;
+                const targetId = passwordChallenge.targetId;
+                const pwd = challengePasswordInput;
+                setPasswordChallenge(null);
+                setChallengePasswordInput("");
+                handleStartConnect(targetId, "full-control", pwd);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Unattended Password
+                </label>
+                <input
+                  type="password"
+                  value={challengePasswordInput}
+                  onChange={(e) => setChallengePasswordInput(e.target.value)}
+                  placeholder="Enter remote password..."
+                  autoFocus
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mexdesk-red/30 focus:border-mexdesk-red transition font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordChallenge(null);
+                    setChallengePasswordInput("");
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!challengePasswordInput.trim()}
+                  className="px-4 py-1.5 bg-mexdesk-red hover:bg-mexdesk-crimson disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1.5"
+                >
+                  <span>Connect</span>
+                  <ArrowRight size={13} />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

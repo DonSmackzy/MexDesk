@@ -39,7 +39,7 @@ export function RemoteViewer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showStats, setShowStats] = useState(true);
-  const [stats, setStats] = useState({ fps: 60, bitrate: 2450, latency: 28 });
+  const [stats, setStats] = useState({ fps: 0, bitrate: 0, latency: 0 });
 
   // Floating menus & drawers
   const [showWhiteboard, setShowWhiteboard] = useState(false);
@@ -183,13 +183,13 @@ export function RemoteViewer({
       {privacyMode && (
         <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center text-white z-20">
           <EyeOff size={48} className="text-mexdesk-red mb-3" />
-          <h3 className="text-lg font-bold">Privacy Mode Enabled</h3>
-          <p className="text-xs text-slate-400 mt-1">Host display is blacked out for confidentiality.</p>
+          <h3 className="text-lg font-bold">Privacy Curtain Active</h3>
+          <p className="text-xs text-slate-400 mt-1">Remote display is obscured on your viewer screen for privacy.</p>
           <button
             onClick={() => setPrivacyMode(false)}
             className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg border border-slate-700 transition"
           >
-            Disable Privacy Mode
+            Disable Privacy Curtain
           </button>
         </div>
       )}
@@ -351,13 +351,13 @@ export function RemoteViewer({
       {showStats && (
         <div className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-lg px-3 py-1.5 text-[11px] text-slate-300 font-mono flex items-center space-x-3 pointer-events-none z-10 shadow-lg">
           <div className="flex items-center space-x-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span>{stats.fps || 60} FPS</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${stats.fps > 0 ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`}></span>
+            <span>{stats.fps > 0 ? `${stats.fps} FPS` : "Measuring..."}</span>
           </div>
           <span>•</span>
-          <span>{stats.bitrate ? `${stats.bitrate} kbps` : "2.4 Mbps"}</span>
+          <span>{stats.bitrate > 0 ? `${stats.bitrate} kbps` : "-- kbps"}</span>
           <span>•</span>
-          <span>{stats.latency ? `${stats.latency} ms` : "24 ms"}</span>
+          <span>{stats.latency > 0 ? `${stats.latency} ms` : "-- ms"}</span>
         </div>
       )}
 

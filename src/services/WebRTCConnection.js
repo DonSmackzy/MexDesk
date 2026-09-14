@@ -22,14 +22,29 @@ export class WebRTCConnection {
     this.handlers = new Map();
     this.statsTimer = null;
 
-    this.iceServers = [
+    let customTurn = null;
+    try {
+      const stored = localStorage.getItem("mexdesk_turn_config");
+      if (stored) customTurn = JSON.parse(stored);
+    } catch (e) {}
+
+    this.iceServers = customTurn || [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
       { urls: "stun:stun3.l.google.com:19302" },
-      { urls: "stun:stun4.l.google.com:19302" },
       { urls: "stun:stun.services.mozilla.com" },
-      { urls: "stun:global.stun.twilio.com:3478" }
+      { urls: "stun:global.stun.twilio.com:3478" },
+      // Fallback TURN relay servers for symmetric NAT and cellular mobile network traversal
+      {
+        urls: [
+          "turn:openrelay.metered.ca:80",
+          "turn:openrelay.metered.ca:443",
+          "turns:openrelay.metered.ca:443?transport=tcp"
+        ],
+        username: "openrelay",
+        credential: "openrelay"
+      }
     ];
   }
 

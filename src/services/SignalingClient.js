@@ -5,15 +5,20 @@ export class SignalingClient {
     this.url = url;
     this.ws = null;
     this.peerId = null;
+    this.authToken = localStorage.getItem("mexdesk_device_token") || null;
     this.isConnected = false;
     this.handlers = new Map();
     this.reconnectTimer = null;
     this.pingInterval = null;
   }
 
-  connect(customId = null, alias = "MexDesk Device", unattendedPassword = null) {
+  connect(customId = null, alias = "MexDesk Device", unattendedPassword = null, authToken = null) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
+    }
+
+    if (authToken) {
+      this.authToken = authToken;
     }
 
     try {
@@ -22,10 +27,11 @@ export class SignalingClient {
       this.ws.onopen = () => {
         this.isConnected = true;
         this.trigger("status", { connected: true });
-        // Register client
+        // Register client with persistent authToken for cryptographic ownership verification
         this.send({
           type: "register",
           requestedId: customId,
+          authToken: this.authToken,
           alias,
           unattendedPassword,
           systemInfo: {
@@ -57,7 +63,7 @@ export class SignalingClient {
         if (this.pingInterval) clearInterval(this.pingInterval);
         // Auto-reconnect after 3s
         this.reconnectTimer = setTimeout(() => {
-          this.connect(this.peerId, alias, unattendedPassword);
+          this.connect(this.peerId, alias, unattendedPassword, this.authToken);
         }, 3000);
       };
 
@@ -89,6 +95,10 @@ export class SignalingClient {
     switch (msg.type) {
       case "registered":
         this.peerId = msg.id;
+        if (msg.authToken) {
+          this.authToken = msg.authToken;
+          localStorage.setItem("mexdesk_device_token", msg.authToken);
+        }
         this.trigger("registered", msg);
         break;
       case "incoming-call":
@@ -105,6 +115,12 @@ export class SignalingClient {
         break;
       case "call-error":
         this.trigger("call-error", msg);
+        break;
+      case "password-required":
+        this.trigger("password-required", msg);
+        break;
+      case "server-error":
+        this.trigger("server-error", msg);
         break;
       case "offer":
         this.trigger("offer", msg);

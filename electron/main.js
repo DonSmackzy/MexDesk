@@ -23,11 +23,31 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
+      devTools: !app.isPackaged,
     },
   });
 
   inputController.setScreenSize(screenWidth, screenHeight);
+
+  // Navigation Guard: Block arbitrary URL navigation
+  mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
+    try {
+      const parsed = new URL(navigationUrl);
+      if (parsed.protocol !== "file:" && !navigationUrl.startsWith("http://localhost:") && !navigationUrl.startsWith("http://127.0.0.1:")) {
+        console.warn(`[MexDesk Main] Blocked unauthorized navigation to: ${navigationUrl}`);
+        event.preventDefault();
+      }
+    } catch {
+      event.preventDefault();
+    }
+  });
+
+  // Window Open Guard: Block unhandled external window pops
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    console.warn(`[MexDesk Main] Blocked window.open request for: ${url}`);
+    return { action: "deny" };
+  });
 
   // Load Vite dev server URL or local index.html in production
   const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
@@ -115,8 +135,21 @@ ipcMain.handle("get-screen-sources", async () => {
   }
 });
 
-ipcMain.on("simulate-input", async (_, event) => {
-  await inputController.handleEvent(event);
+ipcMain.on("simulate-input", async (event, inputPayload) => {
+  // 1. Sender validation
+  if (mainWindow && event.sender !== mainWindow.webContents) {
+    console.warn("[MexDesk Main] Rejected input simulation from unauthorized webContents sender");
+    return;
+  }
+  // 2. Schema and bounds validation
+  if (!inputPayload || typeof inputPayload !== "object" || !inputPayload.type) return;
+
+  if (inputPayload.type.startsWith("mouse") && (inputPayload.x !== undefined || inputPayload.y !== undefined)) {
+    if (typeof inputPayload.x === "number" && (inputPayload.x < 0.0 || inputPayload.x > 1.0 || isNaN(inputPayload.x))) return;
+    if (typeof inputPayload.y === "number" && (inputPayload.y < 0.0 || inputPayload.y > 1.0 || isNaN(inputPayload.y))) return;
+  }
+
+  await inputController.handleEvent(inputPayload);
 });
 
 ipcMain.handle("clipboard-read", () => {

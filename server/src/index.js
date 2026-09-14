@@ -1,8 +1,8 @@
 const { WebSocketServer, WebSocket } = require("ws");
 const http = require("http");
-
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const PORT = process.env.PORT || 7777;
 const DIST_DIR = fs.existsSync(path.resolve(process.cwd(), "dist"))
@@ -21,28 +21,181 @@ const MIME_TYPES = {
   ".webm": "video/webm",
 };
 
+// Map of peerId -> { ws, id, alias, status: 'available'|'busy', sessionWith, systemInfo }
+const peers = new Map();
+const socketToPeerId = new Map();
+
+// Device registry: deviceId -> { tokenHash, alias, passwordHash, passwordSalt, createdAt }
+const deviceRegistry = new Map();
+const REGISTRY_FILE = process.env.MEXDESK_REGISTRY_PATH || path.resolve(__dirname, "../registry.json");
+
+function loadDeviceRegistry() {
+  try {
+    if (fs.existsSync(REGISTRY_FILE)) {
+      const data = JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf-8"));
+      for (const [id, record] of Object.entries(data)) {
+        deviceRegistry.set(id, record);
+      }
+      console.log(`[MexDesk Server] Loaded ${deviceRegistry.size} persistent device registrations from disk.`);
+    }
+  } catch (err) {
+    console.error("[MexDesk Server] Failed to load registry:", err.message);
+  }
+}
+
+function persistDeviceRegistry() {
+  try {
+    const obj = {};
+    for (const [id, record] of deviceRegistry.entries()) {
+      obj[id] = record;
+    }
+    const tmpFile = `${REGISTRY_FILE}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(obj, null, 2), "utf-8");
+    try {
+      if (fs.existsSync(REGISTRY_FILE)) {
+        fs.unlinkSync(REGISTRY_FILE);
+      }
+      fs.renameSync(tmpFile, REGISTRY_FILE);
+    } catch {
+      fs.copyFileSync(tmpFile, REGISTRY_FILE);
+      try { fs.unlinkSync(tmpFile); } catch (e) {}
+    }
+  } catch (err) {
+    console.error("[MexDesk Server] Failed to persist registry:", err.message);
+  }
+}
+
+// Load persisted registry at startup
+loadDeviceRegistry();
+
+// Brute-force protection: key (caller:target) -> { count, lockedUntil }
+const authAttempts = new Map();
+
+function hashAuthToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function verifyAuthToken(suppliedToken, storedHash) {
+  if (!suppliedToken || !storedHash) return false;
+  const suppliedHash = hashAuthToken(suppliedToken);
+  const bufA = Buffer.from(suppliedHash);
+  const bufB = Buffer.from(storedHash);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString("hex");
+}
+
+function verifyPassword(suppliedPassword, storedHash, salt) {
+  if (!suppliedPassword || !storedHash || !salt) return false;
+  const testHash = hashPassword(suppliedPassword, salt);
+  const bufA = Buffer.from(testHash);
+  const bufB = Buffer.from(storedHash);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function checkRateLimit(key) {
+  const now = Date.now();
+  const attempt = authAttempts.get(key);
+  if (attempt && attempt.lockedUntil > now) {
+    const remainingSec = Math.ceil((attempt.lockedUntil - now) / 1000);
+    return { allowed: false, remainingSec };
+  }
+  return { allowed: true };
+}
+
+function recordFailedAttempt(key) {
+  const now = Date.now();
+  const attempt = authAttempts.get(key) || { count: 0, lockedUntil: 0 };
+  attempt.count++;
+  if (attempt.count >= 5) {
+    attempt.lockedUntil = now + 60000; // 60s lockout
+    attempt.count = 0;
+  }
+  authAttempts.set(key, attempt);
+}
+
+function resetFailedAttempts(key) {
+  authAttempts.delete(key);
+}
+
 // Create HTTP server for health checks, static assets & WebSocket upgrades
 const server = http.createServer((req, res) => {
   if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "X-Content-Type-Options": "nosniff"
+    });
     return res.end(JSON.stringify({ status: "ok", app: "MexDesk Server", peers: peers.size }));
   }
 
   if (fs.existsSync(DIST_DIR)) {
     let cleanUrl = req.url.split("?")[0];
-    let filePath = path.join(DIST_DIR, cleanUrl === "/" ? "index.html" : cleanUrl);
 
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-      const ext = path.extname(filePath).toLowerCase();
-      res.writeHead(200, { "Content-Type": MIME_TYPES[ext] || "application/octet-stream" });
-      return fs.createReadStream(filePath).pipe(res);
+    // Explicit traversal check: reject any URL attempting to use relative directory traversal
+    let decodedUrl = cleanUrl;
+    try {
+      decodedUrl = decodeURIComponent(cleanUrl);
+    } catch (e) {}
+
+    if (cleanUrl.includes("..") || decodedUrl.includes("..")) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      return res.end("Forbidden: Path Traversal Detected");
     }
 
-    // SPA fallback to index.html
+    if (cleanUrl === "/") cleanUrl = "/index.html";
+
+    // Safe path containment check against path traversal
+    const safePath = path.resolve(DIST_DIR, "." + path.normalize(cleanUrl));
+    if (!safePath.startsWith(DIST_DIR)) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      return res.end("Forbidden: Access Denied");
+    }
+
+    if (fs.existsSync(safePath) && fs.statSync(safePath).isFile()) {
+      const ext = path.extname(safePath).toLowerCase();
+      res.writeHead(200, {
+        "Content-Type": MIME_TYPES[ext] || "application/octet-stream",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Referrer-Policy": "no-referrer"
+      });
+      const stream = fs.createReadStream(safePath);
+      stream.on("error", () => {
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "text/plain" });
+          res.end("Internal Server Error");
+        }
+      });
+      return stream.pipe(res);
+    }
+
+    // Do NOT fallback to index.html if the URL looks like a specific asset/file request (has extension)
+    const hasExtension = path.extname(cleanUrl) !== "";
+    if (hasExtension) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      return res.end("Not Found");
+    }
+
+    // SPA fallback to index.html for navigation routes
     const indexPath = path.join(DIST_DIR, "index.html");
     if (fs.existsSync(indexPath)) {
-      res.writeHead(200, { "Content-Type": "text/html" });
-      return fs.createReadStream(indexPath).pipe(res);
+      res.writeHead(200, {
+        "Content-Type": "text/html",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "SAMEORIGIN"
+      });
+      const stream = fs.createReadStream(indexPath);
+      stream.on("error", () => {
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "text/plain" });
+          res.end("Internal Server Error");
+        }
+      });
+      return stream.pipe(res);
     }
   }
 
@@ -50,11 +203,11 @@ const server = http.createServer((req, res) => {
   res.end("MexDesk Signaling Server is running on port " + PORT);
 });
 
-const wss = new WebSocketServer({ server });
-
-// Map of peerId -> { ws, id, alias, unattendedPassword, status: 'available'|'busy', sessionWith, systemInfo }
-const peers = new Map();
-const socketToPeerId = new Map();
+// Configure WebSocket Server with 1MB maximum payload limit
+const wss = new WebSocketServer({
+  server,
+  maxPayload: 1 * 1024 * 1024
+});
 
 function generateMexDeskId() {
   let id;
@@ -152,312 +305,441 @@ wss.on("connection", (ws) => {
 });
 
 function handleMessage(ws, msg) {
-  const { type } = msg;
+  try {
+    const { type } = msg;
 
-  switch (type) {
-    case "register": {
-      // Client requesting or re-claiming its permanent static device ID
-      let assignedId = msg.requestedId ? normalizeId(msg.requestedId) : null;
+    switch (type) {
+      case "register": {
+        // Client requesting or re-claiming its permanent static device ID
+        const requestedId = msg.requestedId ? normalizeId(msg.requestedId) : null;
+        const suppliedToken = msg.authToken || null;
+        let assignedId = null;
+        let issuedToken = null;
 
-      if (!assignedId) {
-        assignedId = generateMexDeskId();
-      } else {
-        // If an existing socket is registered with this ID (e.g. fast browser refresh/reconnect)
-        const existingPeer = peers.get(assignedId);
-        if (existingPeer && existingPeer.ws !== ws) {
-          try {
-            existingPeer.ws.close();
-          } catch (e) {}
-          peers.delete(assignedId);
-          socketToPeerId.delete(existingPeer.ws);
+        if (requestedId && deviceRegistry.has(requestedId)) {
+          const regRecord = deviceRegistry.get(requestedId);
+          // Verify token ownership to prevent ID hijacking
+          if (suppliedToken && verifyAuthToken(suppliedToken, regRecord.tokenHash)) {
+            assignedId = requestedId;
+            issuedToken = suppliedToken;
+
+            // Safely close stale connection from previous socket if different
+            const existingPeer = peers.get(assignedId);
+            if (existingPeer && existingPeer.ws !== ws) {
+              try {
+                existingPeer.ws.close(1000, "Replaced by authenticated owner reconnect");
+              } catch (e) {}
+              peers.delete(assignedId);
+              socketToPeerId.delete(existingPeer.ws);
+            }
+          } else {
+            // Ownership verification failed - reject hijacking and allocate fresh ID
+            assignedId = generateMexDeskId();
+            issuedToken = crypto.randomBytes(32).toString("hex");
+            deviceRegistry.set(assignedId, {
+              tokenHash: hashAuthToken(issuedToken),
+              alias: msg.alias || "MexDesk Device",
+              passwordHash: null,
+              passwordSalt: null,
+              createdAt: Date.now()
+            });
+            console.warn(`[MexDesk Server] Hijack attempt prevented for ID ${requestedId}. Re-assigned new ID: ${assignedId}`);
+          }
+        } else if (requestedId) {
+          // ID not yet registered in registry - claim it with new token
+          assignedId = requestedId;
+          issuedToken = suppliedToken || crypto.randomBytes(32).toString("hex");
+          deviceRegistry.set(assignedId, {
+            tokenHash: hashAuthToken(issuedToken),
+            alias: msg.alias || "MexDesk Device",
+            passwordHash: null,
+            passwordSalt: null,
+            createdAt: Date.now()
+          });
+        } else {
+          // Brand new device
+          assignedId = generateMexDeskId();
+          issuedToken = crypto.randomBytes(32).toString("hex");
+          deviceRegistry.set(assignedId, {
+            tokenHash: hashAuthToken(issuedToken),
+            alias: msg.alias || "MexDesk Device",
+            passwordHash: null,
+            passwordSalt: null,
+            createdAt: Date.now()
+          });
         }
-      }
 
-      const peerData = {
-        ws,
-        id: assignedId,
-        alias: msg.alias || "MexDesk Device",
-        unattendedPassword: msg.unattendedPassword || null,
-        status: "available",
-        sessionWith: null,
-        systemInfo: msg.systemInfo || {}
-      };
+        const reg = deviceRegistry.get(assignedId);
+        if (msg.unattendedPassword) {
+          const salt = crypto.randomBytes(16).toString("hex");
+          reg.passwordHash = hashPassword(msg.unattendedPassword, salt);
+          reg.passwordSalt = salt;
+        }
+        if (msg.alias) {
+          reg.alias = msg.alias;
+        }
 
-      peers.set(assignedId, peerData);
-      socketToPeerId.set(ws, assignedId);
+        const peerData = {
+          ws,
+          id: assignedId,
+          alias: reg.alias,
+          hasUnattendedPassword: !!reg.passwordHash,
+          status: "available",
+          sessionWith: null,
+          systemInfo: msg.systemInfo || {}
+        };
 
-      sendTo(ws, {
-        type: "registered",
-        id: assignedId,
-        alias: peerData.alias,
-        hasUnattendedPassword: !!peerData.unattendedPassword
-      });
+        peers.set(assignedId, peerData);
+        socketToPeerId.set(ws, assignedId);
 
-      console.log(`[MexDesk Server] Registered peer: ${assignedId} (${peerData.alias})`);
-      break;
-    }
+        sendTo(ws, {
+          type: "registered",
+          id: assignedId,
+          alias: peerData.alias,
+          authToken: issuedToken,
+          hasUnattendedPassword: peerData.hasUnattendedPassword
+        });
 
-    case "set-alias": {
-      const peerId = socketToPeerId.get(ws);
-      const newAlias = (msg.alias || "").trim();
-
-      if (!peerId || !peers.has(peerId)) {
-        sendTo(ws, { type: "alias-error", message: "Device not registered." });
+        persistDeviceRegistry();
+        console.log(`[MexDesk Server] Registered peer: ${assignedId} ("${peerData.alias}")`);
         break;
       }
 
-      if (newAlias) {
-        const existing = findPeer(newAlias);
-        if (existing && existing.id !== peerId) {
-          sendTo(ws, {
-            type: "alias-error",
-            message: `Alias "${newAlias}" is already taken by another desk.`
-          });
+      case "set-alias": {
+        const peerId = socketToPeerId.get(ws);
+        const newAlias = (msg.alias || "").trim();
+
+        if (!peerId || !peers.has(peerId)) {
+          sendTo(ws, { type: "alias-error", message: "Device not registered." });
           break;
         }
-      }
 
-      const peer = peers.get(peerId);
-      peer.alias = newAlias || `MexDesk Device`;
+        if (newAlias) {
+          const existing = findPeer(newAlias);
+          if (existing && existing.id !== peerId) {
+            sendTo(ws, {
+              type: "alias-error",
+              message: `Alias "${newAlias}" is already taken by another desk.`
+            });
+            break;
+          }
+        }
 
-      sendTo(ws, {
-        type: "alias-updated",
-        alias: peer.alias,
-        success: true
-      });
+        const peer = peers.get(peerId);
+        peer.alias = newAlias || "MexDesk Device";
 
-      console.log(`[MexDesk Server] Alias updated for ${peerId}: "${peer.alias}"`);
-      break;
-    }
+        const reg = deviceRegistry.get(peerId);
+        if (reg) {
+          reg.alias = peer.alias;
+        }
 
-    case "set-unattended-password": {
-      const peerId = socketToPeerId.get(ws);
-      if (peerId && peers.has(peerId)) {
-        peers.get(peerId).unattendedPassword = msg.password || null;
         sendTo(ws, {
-          type: "unattended-password-updated",
-          enabled: !!msg.password
+          type: "alias-updated",
+          alias: peer.alias,
+          success: true
         });
-      }
-      break;
-    }
 
-    case "query-peer": {
-      const targetPeer = findPeer(msg.targetId);
-      if (!targetPeer) {
-        sendTo(ws, {
-          type: "query-peer-result",
-          targetId: msg.targetId,
-          found: false
-        });
-      } else {
-        sendTo(ws, {
-          type: "query-peer-result",
-          targetId: targetPeer.id,
-          found: true,
-          status: targetPeer.status,
-          alias: targetPeer.alias,
-          requiresPassword: !!targetPeer.unattendedPassword
-        });
-      }
-      break;
-    }
-
-    case "call-user": {
-      const callerId = socketToPeerId.get(ws);
-      const queryTarget = msg.targetId;
-
-      if (!callerId) {
-        sendTo(ws, { type: "call-error", message: "You are not registered." });
-        return;
+        persistDeviceRegistry();
+        console.log(`[MexDesk Server] Alias updated for ${peerId}: "${peer.alias}"`);
+        break;
       }
 
-      const targetPeer = findPeer(queryTarget);
-      if (!targetPeer) {
-        sendTo(ws, { type: "call-error", message: `Desk or Alias "${queryTarget}" is offline or not found.` });
-        return;
-      }
+      case "set-unattended-password": {
+        const peerId = socketToPeerId.get(ws);
+        if (peerId && deviceRegistry.has(peerId)) {
+          const reg = deviceRegistry.get(peerId);
+          if (msg.password) {
+            const salt = crypto.randomBytes(16).toString("hex");
+            reg.passwordHash = hashPassword(msg.password, salt);
+            reg.passwordSalt = salt;
+          } else {
+            reg.passwordHash = null;
+            reg.passwordSalt = null;
+          }
 
-      const targetId = targetPeer.id;
-
-      if (callerId === targetId) {
-        sendTo(ws, { type: "call-error", message: "Cannot connect to your own MexDesk ID or alias." });
-        return;
-      }
-
-      if (targetPeer.status === "busy") {
-        sendTo(ws, { type: "call-error", message: `Desk "${targetPeer.alias || targetId}" is currently in another session.` });
-        return;
-      }
-
-      // Check unattended access password if provided
-      if (targetPeer.unattendedPassword) {
-        if (msg.password && msg.password === targetPeer.unattendedPassword) {
-          // Auto-accept unattended connection!
-          targetPeer.status = "busy";
-          targetPeer.sessionWith = callerId;
-
-          const caller = peers.get(callerId);
-          if (caller) {
-            caller.status = "busy";
-            caller.sessionWith = targetId;
+          const peer = peers.get(peerId);
+          if (peer) {
+            peer.hasUnattendedPassword = !!reg.passwordHash;
           }
 
           sendTo(ws, {
-            type: "call-accepted",
-            targetId,
-            mode: "unattended",
-            permissions: {
-              control: true,
-              fileTransfer: true,
-              clipboard: true,
-              audio: true
+            type: "unattended-password-updated",
+            enabled: !!reg.passwordHash
+          });
+          persistDeviceRegistry();
+          console.log(`[MexDesk Server] Unattended password updated for ${peerId}: ${!!reg.passwordHash ? "ENABLED" : "DISABLED"}`);
+        }
+        break;
+      }
+
+      case "query-peer": {
+        const targetPeer = findPeer(msg.targetId);
+        if (!targetPeer) {
+          sendTo(ws, {
+            type: "query-peer-result",
+            targetId: msg.targetId,
+            found: false
+          });
+        } else {
+          const reg = deviceRegistry.get(targetPeer.id);
+          sendTo(ws, {
+            type: "query-peer-result",
+            targetId: targetPeer.id,
+            found: true,
+            status: targetPeer.status,
+            alias: targetPeer.alias,
+            requiresPassword: reg ? !!reg.passwordHash : false
+          });
+        }
+        break;
+      }
+
+      case "call-user": {
+        const callerId = socketToPeerId.get(ws);
+        const queryTarget = msg.targetId;
+
+        if (!callerId) {
+          sendTo(ws, { type: "call-error", message: "You are not registered." });
+          return;
+        }
+
+        const targetPeer = findPeer(queryTarget);
+        if (!targetPeer) {
+          sendTo(ws, { type: "call-error", message: `Desk or Alias "${queryTarget}" is offline or not found.` });
+          return;
+        }
+
+        const targetId = targetPeer.id;
+
+        if (callerId === targetId) {
+          sendTo(ws, { type: "call-error", message: "Cannot connect to your own MexDesk ID or alias." });
+          return;
+        }
+
+        if (targetPeer.status === "busy") {
+          sendTo(ws, { type: "call-error", message: `Desk "${targetPeer.alias || targetId}" is currently in another session.` });
+          return;
+        }
+
+        const targetReg = deviceRegistry.get(targetId);
+
+        // Check unattended access password if target configured one
+        if (targetReg && targetReg.passwordHash) {
+          const rateLimitKey = `${callerId}:${targetId}`;
+          const rateLimit = checkRateLimit(rateLimitKey);
+
+          if (!rateLimit.allowed) {
+            sendTo(ws, {
+              type: "call-error",
+              message: `Too many failed password attempts. Locked out for ${rateLimit.remainingSec}s.`
+            });
+            return;
+          }
+
+          if (msg.password) {
+            const isValid = verifyPassword(msg.password, targetReg.passwordHash, targetReg.passwordSalt);
+            if (isValid) {
+              resetFailedAttempts(rateLimitKey);
+
+              // Auto-accept unattended connection
+              targetPeer.status = "busy";
+              targetPeer.sessionWith = callerId;
+
+              const caller = peers.get(callerId);
+              if (caller) {
+                caller.status = "busy";
+                caller.sessionWith = targetId;
+              }
+
+              sendTo(ws, {
+                type: "call-accepted",
+                targetId,
+                mode: "unattended",
+                permissions: {
+                  control: true,
+                  fileTransfer: true,
+                  clipboard: true,
+                  audio: true
+                }
+              });
+
+              sendTo(targetPeer.ws, {
+                type: "unattended-session-started",
+                callerId,
+                callerAlias: msg.callerAlias || "Remote User"
+              });
+
+              console.log(`[MexDesk Server] Unattended session authorized: ${callerId} -> ${targetId}`);
+              return;
+            } else {
+              recordFailedAttempt(rateLimitKey);
+              sendTo(ws, { type: "call-error", message: "Incorrect unattended access password." });
+              return;
             }
-          });
-
-          sendTo(targetPeer.ws, {
-            type: "unattended-session-started",
-            callerId,
-            callerAlias: msg.callerAlias || "Remote User"
-          });
-
-          console.log(`[MexDesk Server] Unattended session authorized: ${callerId} -> ${targetId}`);
-          return;
-        } else if (msg.password) {
-          sendTo(ws, { type: "call-error", message: "Incorrect unattended access password." });
-          return;
+          } else {
+            // Desk requires password, but caller did not supply one yet
+            sendTo(ws, {
+              type: "password-required",
+              targetId,
+              targetAlias: targetPeer.alias,
+              message: "This desk requires an unattended access password."
+            });
+            return;
+          }
         }
-      }
 
-      // Standard interactive incoming call prompt
-      sendTo(targetPeer.ws, {
-        type: "incoming-call",
-        callerId,
-        callerAlias: msg.callerAlias || "MexDesk User",
-        connectionType: msg.connectionType || "full-control"
-      });
-
-      sendTo(ws, {
-        type: "call-ringing",
-        targetId
-      });
-
-      console.log(`[MexDesk Server] Calling: ${callerId} -> ${targetId}`);
-      break;
-    }
-
-    case "accept-call": {
-      const hostId = socketToPeerId.get(ws);
-      const callerId = normalizeId(msg.callerId);
-
-      const caller = peers.get(callerId);
-      const host = peers.get(hostId);
-
-      if (!caller || !host) {
-        sendTo(ws, { type: "call-error", message: "Peer no longer available." });
-        return;
-      }
-
-      host.status = "busy";
-      host.sessionWith = callerId;
-      caller.status = "busy";
-      caller.sessionWith = hostId;
-
-      sendTo(caller.ws, {
-        type: "call-accepted",
-        targetId: hostId,
-        mode: "interactive",
-        permissions: msg.permissions || {
-          control: true,
-          fileTransfer: true,
-          clipboard: true,
-          audio: true
-        }
-      });
-
-      sendTo(ws, {
-        type: "session-established",
-        peerId: callerId,
-        permissions: msg.permissions
-      });
-
-      console.log(`[MexDesk Server] Session accepted: ${callerId} <-> ${hostId}`);
-      break;
-    }
-
-    case "reject-call": {
-      const hostId = socketToPeerId.get(ws);
-      const callerId = normalizeId(msg.callerId);
-      sendToPeer(callerId, {
-        type: "call-rejected",
-        hostId,
-        reason: msg.reason || "Connection rejected by remote desk."
-      });
-      break;
-    }
-
-    case "offer": {
-      const senderId = socketToPeerId.get(ws);
-      const targetId = normalizeId(msg.targetId);
-      sendToPeer(targetId, {
-        type: "offer",
-        senderId,
-        sdp: msg.sdp
-      });
-      break;
-    }
-
-    case "answer": {
-      const senderId = socketToPeerId.get(ws);
-      const targetId = normalizeId(msg.targetId);
-      sendToPeer(targetId, {
-        type: "answer",
-        senderId,
-        sdp: msg.sdp
-      });
-      break;
-    }
-
-    case "ice-candidate": {
-      const senderId = socketToPeerId.get(ws);
-      const targetId = normalizeId(msg.targetId);
-      sendToPeer(targetId, {
-        type: "ice-candidate",
-        senderId,
-        candidate: msg.candidate
-      });
-      break;
-    }
-
-    case "hangup": {
-      const senderId = socketToPeerId.get(ws);
-      const sender = peers.get(senderId);
-      if (sender && sender.sessionWith) {
-        const partnerId = sender.sessionWith;
-        sendToPeer(partnerId, {
-          type: "session-ended",
-          peerId: senderId,
-          reason: msg.reason || "Remote user closed the session"
+        // Standard interactive incoming call prompt
+        sendTo(targetPeer.ws, {
+          type: "incoming-call",
+          callerId,
+          callerAlias: msg.callerAlias || "MexDesk User",
+          connectionType: msg.connectionType || "full-control"
         });
-        const partner = peers.get(partnerId);
-        if (partner) {
-          partner.status = "available";
-          partner.sessionWith = null;
-        }
-        sender.status = "available";
-        sender.sessionWith = null;
-        console.log(`[MexDesk Server] Session ended between ${senderId} and ${partnerId}`);
+
+        sendTo(ws, {
+          type: "call-ringing",
+          targetId
+        });
+
+        console.log(`[MexDesk Server] Calling: ${callerId} -> ${targetId}`);
+        break;
       }
-      break;
-    }
 
-    case "ping": {
-      sendTo(ws, { type: "pong", timestamp: Date.now() });
-      break;
-    }
+      case "accept-call": {
+        const hostId = socketToPeerId.get(ws);
+        const callerId = normalizeId(msg.callerId);
 
-    default:
-      console.warn("[MexDesk Server] Unhandled message type:", type);
+        const caller = peers.get(callerId);
+        const host = peers.get(hostId);
+
+        if (!caller || !host) {
+          sendTo(ws, { type: "call-error", message: "Peer no longer available." });
+          return;
+        }
+
+        host.status = "busy";
+        host.sessionWith = callerId;
+        caller.status = "busy";
+        caller.sessionWith = hostId;
+
+        sendTo(caller.ws, {
+          type: "call-accepted",
+          targetId: hostId,
+          mode: "interactive",
+          permissions: msg.permissions || {
+            control: true,
+            fileTransfer: true,
+            clipboard: true,
+            audio: true
+          }
+        });
+
+        sendTo(ws, {
+          type: "session-established",
+          peerId: callerId,
+          permissions: msg.permissions
+        });
+
+        console.log(`[MexDesk Server] Session accepted: ${callerId} <-> ${hostId}`);
+        break;
+      }
+
+      case "reject-call": {
+        const hostId = socketToPeerId.get(ws);
+        const callerId = normalizeId(msg.callerId);
+        sendToPeer(callerId, {
+          type: "call-rejected",
+          hostId,
+          reason: msg.reason || "Connection rejected by remote desk."
+        });
+        break;
+      }
+
+      case "offer": {
+        const senderId = socketToPeerId.get(ws);
+        const targetId = normalizeId(msg.targetId);
+        const sender = peers.get(senderId);
+
+        // Security check: only relay if sender is in an active or establishing session
+        if (sender && (sender.sessionWith === targetId || sender.status === "busy")) {
+          sendToPeer(targetId, {
+            type: "offer",
+            senderId,
+            sdp: msg.sdp
+          });
+        } else {
+          console.warn(`[MexDesk Server] Blocked unauthorized offer from ${senderId} to ${targetId}`);
+        }
+        break;
+      }
+
+      case "answer": {
+        const senderId = socketToPeerId.get(ws);
+        const targetId = normalizeId(msg.targetId);
+        const sender = peers.get(senderId);
+
+        if (sender && (sender.sessionWith === targetId || sender.status === "busy")) {
+          sendToPeer(targetId, {
+            type: "answer",
+            senderId,
+            sdp: msg.sdp
+          });
+        } else {
+          console.warn(`[MexDesk Server] Blocked unauthorized answer from ${senderId} to ${targetId}`);
+        }
+        break;
+      }
+
+      case "ice-candidate": {
+        const senderId = socketToPeerId.get(ws);
+        const targetId = normalizeId(msg.targetId);
+        const sender = peers.get(senderId);
+
+        if (sender && (sender.sessionWith === targetId || sender.status === "busy")) {
+          sendToPeer(targetId, {
+            type: "ice-candidate",
+            senderId,
+            candidate: msg.candidate
+          });
+        } else {
+          console.warn(`[MexDesk Server] Blocked unauthorized ice-candidate from ${senderId} to ${targetId}`);
+        }
+        break;
+      }
+
+      case "hangup": {
+        const senderId = socketToPeerId.get(ws);
+        const sender = peers.get(senderId);
+        if (sender && sender.sessionWith) {
+          const partnerId = sender.sessionWith;
+          sendToPeer(partnerId, {
+            type: "session-ended",
+            peerId: senderId,
+            reason: msg.reason || "Remote user closed the session"
+          });
+          const partner = peers.get(partnerId);
+          if (partner) {
+            partner.status = "available";
+            partner.sessionWith = null;
+          }
+          sender.status = "available";
+          sender.sessionWith = null;
+          console.log(`[MexDesk Server] Session ended between ${senderId} and ${partnerId}`);
+        }
+        break;
+      }
+
+      case "ping": {
+        sendTo(ws, { type: "pong", timestamp: Date.now() });
+        break;
+      }
+
+      default:
+        console.warn("[MexDesk Server] Unhandled message type:", type);
+    }
+  } catch (err) {
+    console.error("[MexDesk Server] Error in handleMessage:", err.message, err.stack);
+    sendTo(ws, { type: "server-error", message: "An internal server error occurred." });
   }
 }
 

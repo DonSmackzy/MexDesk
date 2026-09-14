@@ -24,22 +24,14 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
   // Active transfers
   const [transfers, setTransfers] = useState([]);
   const [selectedLocalFiles, setSelectedLocalFiles] = useState([]);
-  const [localPath, setLocalPath] = useState("C:\\Users\\User\\Documents");
-  const [remotePath, setRemotePath] = useState("C:\\Users\\RemoteDesk\\Downloads");
+  const [localPath, setLocalPath] = useState("Local Computer (Direct P2P)");
+  const [remotePath, setRemotePath] = useState("Remote Desk (DataChannel)");
 
-  // Simulated local directory items
-  const [localFiles, setLocalFiles] = useState([
-    { name: "Project_Proposal.pdf", size: 2450000, type: "doc", modified: "2026-09-01" },
-    { name: "Design_Assets.zip", size: 18400000, type: "archive", modified: "2026-09-05" },
-    { name: "Screenshot_01.png", size: 1200000, type: "image", modified: "2026-09-08" },
-    { name: "Setup_Script.ps1", size: 8400, type: "code", modified: "2026-09-08" },
-  ]);
+  // Real local staged files
+  const [localFiles, setLocalFiles] = useState([]);
 
-  // Simulated remote directory items + received files
-  const [remoteFiles, setRemoteFiles] = useState([
-    { name: "Logs_2026_09.txt", size: 45000, type: "doc", modified: "2026-09-08" },
-    { name: "Client_Database_Dump.sql", size: 32000000, type: "code", modified: "2026-09-07" },
-  ]);
+  // Real remote received files
+  const [remoteFiles, setRemoteFiles] = useState([]);
 
   useEffect(() => {
     if (!webrtc) return;
@@ -178,29 +170,37 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
               <span className="text-[11px] font-mono text-slate-400 truncate max-w-[180px]">{localPath}</span>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {localFiles.map((file) => {
-                const isSelected = selectedLocalFiles.includes(file.name);
-                return (
-                  <div
-                    key={file.name}
-                    onClick={() => handleSelectLocalFile(file.name)}
-                    className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer transition select-none ${
-                      isSelected
-                        ? "bg-rose-50 text-mexdesk-red font-medium border border-rose-200"
-                        : "hover:bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2.5 truncate">
-                      {getFileIcon(file.name)}
-                      <span className="truncate">{file.name}</span>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {localFiles.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-400">
+                  <Upload size={32} className="mb-2 text-slate-300" />
+                  <p className="text-xs font-semibold text-slate-600">No files queued for sending</p>
+                  <p className="text-[11px] mt-0.5 max-w-[220px]">Click "Send File..." in the header to select files from your computer.</p>
+                </div>
+              ) : (
+                localFiles.map((file) => {
+                  const isSelected = selectedLocalFiles.includes(file.name);
+                  return (
+                    <div
+                      key={file.name}
+                      onClick={() => handleSelectLocalFile(file.name)}
+                      className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer transition select-none ${
+                        isSelected
+                          ? "bg-rose-50 text-mexdesk-red font-medium border border-rose-200"
+                          : "hover:bg-slate-50 text-slate-700 border border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2.5 truncate">
+                        {getFileIcon(file.name)}
+                        <span className="truncate">{file.name}</span>
+                      </div>
+                      <div className="flex items-center space-x-3 text-[11px] text-slate-400 font-mono shrink-0">
+                        <span>{formatBytes(file.size)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-3 text-[11px] text-slate-400 font-mono shrink-0">
-                      <span>{formatBytes(file.size)}</span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -214,21 +214,29 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
               <span className="text-[11px] font-mono text-slate-400 truncate max-w-[180px]">{remotePath}</span>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {remoteFiles.map((file) => (
-                <div
-                  key={file.name}
-                  className="flex items-center justify-between p-2 rounded-lg text-xs hover:bg-slate-50 text-slate-700 select-none"
-                >
-                  <div className="flex items-center space-x-2.5 truncate">
-                    {getFileIcon(file.name)}
-                    <span className="truncate">{file.name}</span>
-                  </div>
-                  <div className="flex items-center space-x-3 text-[11px] text-slate-400 font-mono shrink-0">
-                    <span>{formatBytes(file.size)}</span>
-                  </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {remoteFiles.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-400">
+                  <Download size={32} className="mb-2 text-slate-300" />
+                  <p className="text-xs font-semibold text-slate-600">No received files yet</p>
+                  <p className="text-[11px] mt-0.5 max-w-[220px]">Files sent by the remote desk will arrive directly over the encrypted WebRTC stream.</p>
                 </div>
-              ))}
+              ) : (
+                remoteFiles.map((file) => (
+                  <div
+                    key={file.name}
+                    className="flex items-center justify-between p-2 rounded-lg text-xs hover:bg-slate-50 text-slate-700 select-none border border-slate-100"
+                  >
+                    <div className="flex items-center space-x-2.5 truncate">
+                      {getFileIcon(file.name)}
+                      <span className="truncate font-medium">{file.name}</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-[11px] text-slate-400 font-mono shrink-0">
+                      <span>{formatBytes(file.size)}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

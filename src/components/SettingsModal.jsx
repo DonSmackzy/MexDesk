@@ -21,12 +21,22 @@ export function SettingsModal({
   const [activeTab, setActiveTab] = useState("security");
   const [password, setPassword] = useState(unattendedPassword || "");
   const [serverUrl, setServerUrl] = useState(signalingUrl || "ws://localhost:7777");
+  const [fpsLimit, setFpsLimit] = useState(localStorage.getItem("mexdesk_fps_limit") || "60");
+  const [qualityProfile, setQualityProfile] = useState(localStorage.getItem("mexdesk_quality_profile") || "adaptive");
   const [savedMessage, setSavedMessage] = useState("");
 
   const handleSaveSecurity = (e) => {
     e.preventDefault();
     onSavePassword(password.trim());
     setSavedMessage("Security settings updated!");
+    setTimeout(() => setSavedMessage(""), 2500);
+  };
+
+  const handleSaveDisplay = (e) => {
+    e.preventDefault();
+    localStorage.setItem("mexdesk_fps_limit", fpsLimit);
+    localStorage.setItem("mexdesk_quality_profile", qualityProfile);
+    setSavedMessage("Display settings saved!");
     setTimeout(() => setSavedMessage(""), 2500);
   };
 
@@ -144,16 +154,12 @@ export function SettingsModal({
                     />
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="twofa"
-                      className="rounded text-mexdesk-red focus:ring-mexdesk-red"
-                      defaultChecked
-                    />
-                    <label htmlFor="twofa" className="text-xs text-slate-700">
-                      Require interactive confirmation if password is entered incorrectly
-                    </label>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center space-x-2.5">
+                    <Shield size={16} className="text-emerald-600 shrink-0" />
+                    <div className="text-[11px] text-slate-600 leading-snug">
+                      <strong className="text-slate-800 font-semibold block">Cryptographic Protection Active</strong>
+                      Passwords are salt-hashed with scrypt and protected by automated 60s lockout after 5 failed attempts.
+                    </div>
                   </div>
                 </div>
 
@@ -168,11 +174,11 @@ export function SettingsModal({
 
             {/* TAB: DISPLAY */}
             {activeTab === "display" && (
-              <div className="space-y-5">
+              <form onSubmit={handleSaveDisplay} className="space-y-5">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Display Quality & Rendering</h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Fine-tune the video stream codec and refresh rates.
+                    Fine-tune the video stream frame rate limit and rendering priority.
                   </p>
                 </div>
 
@@ -181,10 +187,14 @@ export function SettingsModal({
                     <label className="text-xs font-semibold text-slate-700 block mb-1">
                       Refresh Rate Limit
                     </label>
-                    <select className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
-                      <option>60 FPS (Ultra Smooth)</option>
-                      <option>30 FPS (Balanced Bandwidth)</option>
-                      <option>15 FPS (Low Bandwidth Saver)</option>
+                    <select
+                      value={fpsLimit}
+                      onChange={(e) => setFpsLimit(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-mexdesk-red"
+                    >
+                      <option value="60">60 FPS (Ultra Smooth - High Bandwidth)</option>
+                      <option value="30">30 FPS (Balanced Bandwidth)</option>
+                      <option value="15">15 FPS (Low Bandwidth Saver)</option>
                     </select>
                   </div>
 
@@ -192,14 +202,25 @@ export function SettingsModal({
                     <label className="text-xs font-semibold text-slate-700 block mb-1">
                       Quality Profile
                     </label>
-                    <select className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800">
-                      <option>Adaptive (Auto-balance bitrate and latency)</option>
-                      <option>Crisp Text (Optimized for documents and code)</option>
-                      <option>Low Latency (Fastest mouse response)</option>
+                    <select
+                      value={qualityProfile}
+                      onChange={(e) => setQualityProfile(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-mexdesk-red"
+                    >
+                      <option value="adaptive">Adaptive (Auto-balance bitrate and latency)</option>
+                      <option value="crisp">Crisp Text (Optimized for documents and code)</option>
+                      <option value="latency">Low Latency (Fastest mouse response)</option>
                     </select>
                   </div>
                 </div>
-              </div>
+
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition"
+                >
+                  Save Display Settings
+                </button>
+              </form>
             )}
 
             {/* TAB: NETWORK */}
