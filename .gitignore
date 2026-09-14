@@ -6,3 +6,4 @@ out
 .env
 .env.local
 server/registry.json*
+release

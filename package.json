@@ -10,7 +10,29 @@
     "start": "node server/src/index.js",
     "server": "node server/src/index.js",
     "electron:dev": "concurrently -k \"npm run server\" \"vite\" \"wait-on tcp:5173 && electron .\"",
-    "electron:start": "electron ."
+    "electron:start": "electron .",
+    "dist": "npm run build && electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.mexdesk.app",
+    "productName": "MexDesk",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/koffi/**/*"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "MexDesk.exe"
+    }
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -29,6 +51,7 @@
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^28.2.0",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "vite": "^5.1.4",
