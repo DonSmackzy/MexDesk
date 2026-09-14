@@ -65,15 +65,15 @@ export function RemoteViewer({
   // Attach input capture
   useEffect(() => {
     if (permissions.control && containerRef.current && webrtc) {
-      const capture = new InputCapture(webrtc, containerRef.current);
-      capture.attach(containerRef.current);
+      const capture = new InputCapture(webrtc, containerRef.current, videoRef.current);
+      capture.attach(containerRef.current, videoRef.current);
       inputCaptureRef.current = capture;
 
       return () => {
         capture.detach();
       };
     }
-  }, [permissions.control, webrtc]);
+  }, [permissions.control, webrtc, remoteStream]);
 
   // Listen to WebRTC stats
   useEffect(() => {

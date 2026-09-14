@@ -1,9 +1,10 @@
 // InputCapture.js - Normalizes and transmits user input to remote desk
 
 export class InputCapture {
-  constructor(webrtc, targetElement) {
+  constructor(webrtc, targetElement, videoElement = null) {
     this.webrtc = webrtc;
     this.targetElement = targetElement;
+    this.videoElement = videoElement;
     this.isEnabled = false;
     this.lastMoveTime = 0;
     this.rafId = null;
@@ -18,8 +19,13 @@ export class InputCapture {
     this.boundKeyUp = this.onKeyUp.bind(this);
   }
 
-  attach(element) {
+  setVideoElement(videoEl) {
+    this.videoElement = videoEl;
+  }
+
+  attach(element, videoElement = null) {
     this.targetElement = element;
+    if (videoElement) this.videoElement = videoElement;
     if (!this.targetElement) return;
 
     this.targetElement.addEventListener("mousemove", this.boundMouseMove);
@@ -50,9 +56,47 @@ export class InputCapture {
 
   getNormalizedCoords(event) {
     if (!this.targetElement) return { x: 0, y: 0 };
-    const rect = this.targetElement.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+
+    const containerRect = this.targetElement.getBoundingClientRect();
+    if (containerRect.width <= 0 || containerRect.height <= 0) return { x: 0, y: 0 };
+
+    // If video element is available with known video dimensions, adjust for letterbox / pillarbox
+    if (this.videoElement && this.videoElement.videoWidth > 0 && this.videoElement.videoHeight > 0) {
+      const videoW = this.videoElement.videoWidth;
+      const videoH = this.videoElement.videoHeight;
+      const containerW = containerRect.width;
+      const containerH = containerRect.height;
+
+      const videoAspect = videoW / videoH;
+      const containerAspect = containerW / containerH;
+
+      let renderW = containerW;
+      let renderH = containerH;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (containerAspect > videoAspect) {
+        // Black bars on left/right (pillarbox)
+        renderH = containerH;
+        renderW = renderH * videoAspect;
+        offsetX = (containerW - renderW) / 2;
+      } else {
+        // Black bars on top/bottom (letterbox)
+        renderW = containerW;
+        renderH = renderW / videoAspect;
+        offsetY = (containerH - renderH) / 2;
+      }
+
+      const clickX = event.clientX - containerRect.left - offsetX;
+      const clickY = event.clientY - containerRect.top - offsetY;
+
+      const normX = Math.max(0.0, Math.min(1.0, clickX / renderW));
+      const normY = Math.max(0.0, Math.min(1.0, clickY / renderH));
+      return { x: normX, y: normY };
+    }
+
+    const x = Math.max(0.0, Math.min(1.0, (event.clientX - containerRect.left) / containerRect.width));
+    const y = Math.max(0.0, Math.min(1.0, (event.clientY - containerRect.top) / containerRect.height));
     return { x, y };
   }
 

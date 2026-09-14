@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, desktopCapturer, clipboard, dialog, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, desktopCapturer, clipboard, dialog, screen, session } = require("electron");
 const path = require("path");
 const fs = require("fs").promises;
 const os = require("os");
@@ -83,21 +83,20 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     // Set default display media handler for automatic primary screen capture without picker prompts
     if (session?.defaultSession?.setDisplayMediaRequestHandler) {
-      session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-        desktopCapturer
-          .getSources({ types: ["screen"] })
-          .then((sources) => {
-            const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
-            if (primarySource) {
-              callback({ video: primarySource });
-            } else {
-              callback({ video: request.video });
-            }
-          })
-          .catch((err) => {
-            console.error("[MexDesk Main] DisplayMedia handler error:", err);
-            callback({});
-          });
+      session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+        try {
+          const sources = await desktopCapturer.getSources({ types: ["screen"] });
+          const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
+          if (primarySource) {
+            console.log(`[MexDesk Main] Seamlessly capturing screen: ${primarySource.name} (${primarySource.id})`);
+            callback({ video: primarySource });
+          } else {
+            callback({ video: request.video });
+          }
+        } catch (err) {
+          console.error("[MexDesk Main] DisplayMedia handler error:", err);
+          callback({});
+        }
       });
     }
 

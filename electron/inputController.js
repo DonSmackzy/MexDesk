@@ -65,9 +65,7 @@ class InputController {
       const hDesk = this.OpenInputDesktop(0, 0, DESKTOP_ALL);
       if (hDesk) {
         this.SetThreadDesktop(hDesk);
-        if (this.CloseDesktop) {
-          this.CloseDesktop(hDesk);
-        }
+        // Do not immediately close hDesk while thread desktop is assigned to it
       }
     } catch (e) {
       // Ignore desktop switch failures
@@ -77,16 +75,25 @@ class InputController {
   translateCoords(normX, normY) {
     let originX = 0;
     let originY = 0;
+    let screenW = this.screenSize.width;
+    let screenH = this.screenSize.height;
+
     if (this.GetSystemMetrics) {
       originX = this.GetSystemMetrics(76); // SM_XVIRTUALSCREEN
       originY = this.GetSystemMetrics(77); // SM_YVIRTUALSCREEN
+      const virtW = this.GetSystemMetrics(78); // SM_CXVIRTUALSCREEN
+      const virtH = this.GetSystemMetrics(79); // SM_CYVIRTUALSCREEN
+      if (virtW > 0 && virtH > 0) {
+        screenW = virtW;
+        screenH = virtH;
+      }
     }
 
     const clampedX = Math.max(0.0, Math.min(1.0, normX));
     const clampedY = Math.max(0.0, Math.min(1.0, normY));
 
-    const x = Math.round(originX + (clampedX * this.screenSize.width));
-    const y = Math.round(originY + (clampedY * this.screenSize.height));
+    const x = Math.round(originX + (clampedX * screenW));
+    const y = Math.round(originY + (clampedY * screenH));
     return { x, y };
   }
 
@@ -105,8 +112,6 @@ class InputController {
     if (!event || !event.type) return;
 
     try {
-      this.attachToInputDesktop();
-
       switch (event.type) {
         case "mouse_move":
           await this.handleMouseMove(event);
@@ -145,11 +150,16 @@ class InputController {
 
   async handleMouseMove({ x, y }) {
     if (!this.SetCursorPos) return;
+    if (x === undefined || y === undefined) return;
     const coords = this.translateCoords(x, y);
     this.SetCursorPos(coords.x, coords.y);
   }
 
-  async handleMouseDown({ button }) {
+  async handleMouseDown({ x, y, button }) {
+    if (x !== undefined && y !== undefined && this.SetCursorPos) {
+      const coords = this.translateCoords(x, y);
+      this.SetCursorPos(coords.x, coords.y);
+    }
     if (!this.mouse_event) return;
     const flag = button === 2
       ? InputController.MOUSEEVENTF_RIGHTDOWN
@@ -159,7 +169,11 @@ class InputController {
     this.mouse_event(flag, 0, 0, 0, 0);
   }
 
-  async handleMouseUp({ button }) {
+  async handleMouseUp({ x, y, button }) {
+    if (x !== undefined && y !== undefined && this.SetCursorPos) {
+      const coords = this.translateCoords(x, y);
+      this.SetCursorPos(coords.x, coords.y);
+    }
     if (!this.mouse_event) return;
     const flag = button === 2
       ? InputController.MOUSEEVENTF_RIGHTUP
@@ -169,22 +183,16 @@ class InputController {
     this.mouse_event(flag, 0, 0, 0, 0);
   }
 
-  async handleClick({ x, y, button }) {
-    if (x !== undefined && y !== undefined) {
-      await this.handleMouseMove({ x, y });
-    }
-    await this.handleMouseDown({ button });
-    await this.handleMouseUp({ button });
+  async handleClick({ x, y, button = 0 }) {
+    await this.handleMouseDown({ x, y, button });
+    await new Promise((r) => setTimeout(r, 40));
+    await this.handleMouseUp({ x, y, button });
   }
 
   async handleDblClick({ x, y }) {
-    if (x !== undefined && y !== undefined) {
-      await this.handleMouseMove({ x, y });
-    }
-    await this.handleMouseDown({ button: 0 });
-    await this.handleMouseUp({ button: 0 });
-    await this.handleMouseDown({ button: 0 });
-    await this.handleMouseUp({ button: 0 });
+    await this.handleClick({ x, y, button: 0 });
+    await new Promise((r) => setTimeout(r, 80));
+    await this.handleClick({ x, y, button: 0 });
   }
 
   async handleScroll({ deltaY }) {

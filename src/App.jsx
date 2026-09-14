@@ -77,6 +77,7 @@ export function App() {
   const signalingRef = useRef(null);
   const webrtcRef = useRef(null);
   const localStreamRef = useRef(null);
+  const startHostSessionRef = useRef(null);
 
   // Initialize Signaling Client
   useEffect(() => {
@@ -212,6 +213,19 @@ export function App() {
       handleEndSession(data.reason || "Session ended by remote desk.");
     });
 
+    // Unattended session started automatically
+    client.on("unattended-session-started", async (data) => {
+      console.log("[MexDesk] Unattended session starting from caller:", data.callerId);
+      if (startHostSessionRef.current) {
+        await startHostSessionRef.current(data.callerId, data.permissions || {
+          control: true,
+          fileTransfer: true,
+          clipboard: true,
+          audio: true
+        });
+      }
+    });
+
     client.connect(myId || null, myAlias || "MexDesk Device", unattendedPassword || null);
 
     return () => {
@@ -251,60 +265,23 @@ export function App() {
     localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
   };
 
-  // Host: Accept incoming connection
-  const handleAcceptCall = async (permissions) => {
-    if (!incomingCall || !signalingRef.current) return;
-    const callerId = incomingCall.callerId;
+  // Host: Start screen streaming & WebRTC session
+  const startHostSession = async (callerId, permissions) => {
     setIncomingCall(null);
     setSessionPermissions(permissions);
     setRemoteId(callerId);
 
     try {
       // Capture host screen stream
-      let stream;
-      if (window.mexdeskAPI?.isElectron) {
-        // Under Electron: auto-select primary screen without showing screen picker dialog
-        try {
-          const sources = await window.mexdeskAPI.getScreenSources();
-          const primaryScreen = sources.find((s) => s.id.startsWith("screen")) || sources[0];
-
-          if (primaryScreen) {
-            stream = await navigator.mediaDevices.getUserMedia({
-              audio: false,
-              video: {
-                mandatory: {
-                  chromeMediaSource: "desktop",
-                  chromeMediaSourceId: primaryScreen.id,
-                  minWidth: 1280,
-                  maxWidth: 3840,
-                  minHeight: 720,
-                  maxHeight: 2160,
-                  maxFrameRate: 60,
-                },
-              },
-            });
-          }
-        } catch (err) {
-          console.warn("[MexDesk] Primary screen direct capture fallback:", err.message);
-        }
-
-        // Fallback to getDisplayMedia if direct capture fails
-        if (!stream) {
-          stream = await navigator.mediaDevices.getDisplayMedia({
-            video: { cursor: "always", frameRate: { ideal: 60, max: 60 } },
-            audio: permissions.audio,
-          });
-        }
-      } else {
-        // Under Web / Browser: standard screen capture prompt
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: "always",
-            frameRate: { ideal: 60, max: 60 },
-          },
-          audio: permissions.audio,
-        });
-      }
+      // In Electron: getDisplayMedia is intercepted by setDisplayMediaRequestHandler in main.js
+      // which auto-grants the primary screen with ZERO picker prompts (seamless like AnyDesk)
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          cursor: "always",
+          frameRate: { ideal: 60, max: 60 },
+        },
+        audio: permissions.audio || false,
+      });
 
       localStreamRef.current = stream;
 
@@ -343,9 +320,18 @@ export function App() {
       signalingRef.current.acceptCall(callerId, permissions);
       setSessionState("hosting");
     } catch (err) {
-      console.error("Screen capture cancelled or failed:", err);
+      console.error("[MexDesk] Screen capture cancelled or failed:", err);
       signalingRef.current.rejectCall(callerId, "Screen capture was cancelled.");
     }
+  };
+
+  startHostSessionRef.current = startHostSession;
+
+  // Host: Accept incoming connection
+  const handleAcceptCall = async (permissions) => {
+    if (!incomingCall || !signalingRef.current) return;
+    const callerId = incomingCall.callerId;
+    await startHostSession(callerId, permissions);
   };
 
   // Host: Reject incoming connection

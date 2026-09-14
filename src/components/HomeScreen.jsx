@@ -17,6 +17,7 @@ import {
   Pencil,
   X,
   Tag,
+  AlertCircle,
 } from "lucide-react";
 
 export function HomeScreen({
@@ -106,6 +107,26 @@ export function HomeScreen({
           </button>
         </div>
       </div>
+
+      {/* Informative Browser Sandbox Indicator Banner */}
+      {typeof window !== "undefined" && !window.mexdeskAPI?.isElectron && (
+        <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-4 flex items-start space-x-3 text-amber-900 shadow-sm animate-in fade-in duration-200">
+          <div className="p-2 rounded-xl bg-amber-100 text-amber-700 shrink-0">
+            <AlertCircle size={20} />
+          </div>
+          <div className="text-xs space-y-1">
+            <h4 className="font-semibold text-slate-900">
+              Running in Web Browser Mode
+            </h4>
+            <p className="text-slate-600 leading-relaxed">
+              Standard web browsers operate inside an OS security sandbox: Chrome/Edge requires picking a screen to share and restricts websites from simulating native Windows mouse clicks.
+            </p>
+            <p className="text-amber-800 font-medium">
+              💡 For 1-click seamless screen sharing and full native mouse & keyboard remote control, run the <strong>MexDesk Desktop App</strong> on the host PC (<code className="bg-amber-100/80 px-1 py-0.5 rounded font-mono text-[11px]">npm run electron:start</code>).
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Connection Grid (This Desk vs Remote Desk) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
