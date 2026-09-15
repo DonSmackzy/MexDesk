@@ -26,20 +26,30 @@ export function App() {
   const [unattendedPassword, setUnattendedPassword] = useState(
     localStorage.getItem("mexdesk_unattended_pw") || ""
   );
-  const urlParams = new URLSearchParams(window.location.search);
-  const queryServer = urlParams.get("server");
-  const queryConnect = urlParams.get("connectTo") || "";
+  const CLOUD_SIGNALING = "wss://mexdesk.onrender.com";
 
-  const defaultSignaling =
-    queryServer ||
-    localStorage.getItem("mexdesk_signaling_url") ||
-    (window.location.protocol === "https:"
-      ? `wss://${window.location.host}`
-      : window.location.protocol === "http:" && window.location.hostname !== "localhost"
-      ? `ws://${window.location.host}`
-      : "ws://localhost:7777");
+  const getInitialSignalingUrl = () => {
+    if (queryServer) return queryServer;
 
-  const [signalingUrl, setSignalingUrl] = useState(defaultSignaling);
+    const saved = localStorage.getItem("mexdesk_signaling_url");
+    const isDev = window.location.protocol === "http:" && window.location.hostname === "localhost";
+
+    if (isDev) {
+      return saved || "ws://localhost:7777";
+    }
+
+    if (saved && !saved.includes("localhost") && !saved.includes("127.0.0.1")) {
+      return saved;
+    }
+
+    if (window.location.protocol === "https:") {
+      return `wss://${window.location.host}`;
+    }
+
+    return CLOUD_SIGNALING;
+  };
+
+  const [signalingUrl, setSignalingUrl] = useState(getInitialSignalingUrl);
   const [initialConnectTo] = useState(queryConnect);
 
   // Active Session State
@@ -344,11 +354,31 @@ export function App() {
 
   // Caller: Start connection request
   const handleStartConnect = (targetId, type = "full-control", password = null) => {
-    if (!signalingRef.current || !targetId) return;
-    setRemoteId(targetId);
-    setErrorMessage("");
+    if (!targetId || !targetId.trim()) {
+      setErrorMessage("Please enter a valid 9-digit MexDesk ID or alias.");
+      setTimeout(() => setErrorMessage(""), 3500);
+      return;
+    }
 
-    signalingRef.current.callUser(targetId, "MexDesk Client", password, type);
+    const cleanTarget = targetId.trim();
+
+    if (cleanTarget === myId || (myAlias && cleanTarget.toLowerCase() === myAlias.toLowerCase())) {
+      setErrorMessage("Cannot connect to your own desk address.");
+      setTimeout(() => setErrorMessage(""), 3500);
+      return;
+    }
+
+    if (!isConnected || !signalingRef.current?.isConnected) {
+      setErrorMessage("Signaling server is connecting... Please wait a few seconds until the status displays 'Online'.");
+      setTimeout(() => setErrorMessage(""), 4500);
+      return;
+    }
+
+    setRemoteId(cleanTarget);
+    setErrorMessage("");
+    setIsCallingModal(true);
+
+    signalingRef.current.callUser(cleanTarget, myAlias || "MexDesk User", password, type);
   };
 
   // End Session
