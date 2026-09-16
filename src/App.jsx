@@ -28,6 +28,12 @@ export function App() {
   );
   const CLOUD_SIGNALING = "wss://mexdesk.onrender.com";
 
+  const urlParams = typeof window !== "undefined" && window.location?.search
+    ? new URLSearchParams(window.location.search)
+    : null;
+  const queryServer = urlParams ? urlParams.get("server") : null;
+  const queryConnect = urlParams ? (urlParams.get("connectTo") || "") : "";
+
   const getInitialSignalingUrl = () => {
     if (queryServer) return queryServer;
 

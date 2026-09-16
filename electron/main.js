@@ -23,12 +23,32 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true,
-      devTools: !app.isPackaged,
+      sandbox: false,
+      devTools: true,
     },
   });
 
   inputController.setScreenSize(screenWidth, screenHeight);
+
+  // Forward renderer console messages to terminal for real-time debugging
+  mainWindow.webContents.on("console-message", (event, level, message, line, sourceId) => {
+    const src = sourceId ? path.basename(sourceId) : "renderer";
+    console.log(`[Renderer ${level}] ${message} (${src}:${line})`);
+  });
+
+  // Log navigation load failures
+  mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[MexDesk Main] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+  });
+
+  // F12 or Ctrl+Shift+I toggles DevTools for diagnostics
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if ((input.key === "F12" && input.type === "keyDown") ||
+        (input.control && input.shift && input.key.toLowerCase() === "i" && input.type === "keyDown")) {
+      mainWindow.webContents.toggleDevTools();
+      event.preventDefault();
+    }
+  });
 
   // Navigation Guard: Block arbitrary URL navigation
   mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
@@ -55,12 +75,16 @@ function createWindow() {
     mainWindow.loadURL(devUrl).catch(() => {
       // Retry or load built dist if dev server not running
       const indexPath = path.join(__dirname, "../dist/index.html");
-      mainWindow.loadFile(indexPath).catch(() => {
-        setTimeout(() => mainWindow.loadURL(devUrl), 1500);
+      mainWindow.loadFile(indexPath).catch((err) => {
+        console.warn("[MexDesk Main] Local dist load fallback:", err.message);
+        setTimeout(() => mainWindow.loadURL(devUrl).catch(() => {}), 1500);
       });
     });
   } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+    const indexPath = path.join(__dirname, "../dist/index.html");
+    mainWindow.loadFile(indexPath).catch((err) => {
+      console.error("[MexDesk Main] Failed to load production dist/index.html:", err);
+    });
   }
 
   mainWindow.on("closed", () => {
