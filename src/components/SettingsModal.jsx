@@ -16,11 +16,14 @@ export function SettingsModal({
   onSavePassword,
   signalingUrl,
   onSaveSignalingUrl,
+  optOutDiscovery = false,
+  onSaveDiscoveryOptOut,
   onClose
 }) {
   const [activeTab, setActiveTab] = useState("security");
   const [password, setPassword] = useState(unattendedPassword || "");
   const [serverUrl, setServerUrl] = useState(signalingUrl || "ws://localhost:7777");
+  const [allowDiscovery, setAllowDiscovery] = useState(!optOutDiscovery);
   const [fpsLimit, setFpsLimit] = useState(localStorage.getItem("mexdesk_fps_limit") || "60");
   const [qualityProfile, setQualityProfile] = useState(localStorage.getItem("mexdesk_quality_profile") || "adaptive");
   const [savedMessage, setSavedMessage] = useState("");
@@ -43,6 +46,9 @@ export function SettingsModal({
   const handleSaveNetwork = (e) => {
     e.preventDefault();
     onSaveSignalingUrl(serverUrl.trim());
+    if (onSaveDiscoveryOptOut) {
+      onSaveDiscoveryOptOut(!allowDiscovery);
+    }
     setSavedMessage("Network settings updated!");
     setTimeout(() => setSavedMessage(""), 2500);
   };
@@ -248,9 +254,26 @@ export function SettingsModal({
                   />
                 </div>
 
+                <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                  <label className="flex items-center space-x-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowDiscovery}
+                      onChange={(e) => setAllowDiscovery(e.target.checked)}
+                      className="w-4 h-4 text-mexdesk-red rounded border-slate-300 focus:ring-mexdesk-red"
+                    />
+                    <span className="text-xs font-semibold text-slate-800">
+                      Allow LAN Discovery
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-slate-500 pl-6.5">
+                    Allow other computers running MexDesk on the same local network / WiFi to discover this desk.
+                  </p>
+                </div>
+
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition"
+                  className="px-4 py-2 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition cursor-pointer"
                 >
                   Apply Network Settings
                 </button>

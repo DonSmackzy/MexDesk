@@ -12,11 +12,13 @@ export class SignalingClient {
     this.pingInterval = null;
   }
 
-  connect(customId = null, alias = "MexDesk Device", unattendedPassword = null, authToken = null) {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
-      return;
+  connect(customId = null, alias = null, unattendedPassword = null, authToken = null, optOutDiscovery = false) {
+    if (this.ws) {
+      this.disconnect();
     }
 
+    this.peerId = customId;
+    this.optOutDiscovery = optOutDiscovery;
     if (authToken) {
       this.authToken = authToken;
     }
@@ -34,6 +36,7 @@ export class SignalingClient {
           authToken: this.authToken,
           alias,
           unattendedPassword,
+          optOutDiscovery: this.optOutDiscovery,
           systemInfo: {
             userAgent: navigator.userAgent,
             isElectron: !!window.mexdeskAPI?.isElectron,
@@ -195,6 +198,15 @@ export class SignalingClient {
 
   queryPeer(targetId) {
     this.send({ type: "query-peer", targetId });
+  }
+
+  discoverLan() {
+    this.send({ type: "discover-lan" });
+  }
+
+  setDiscoveryOptOut(optOutDiscovery) {
+    this.optOutDiscovery = !!optOutDiscovery;
+    this.send({ type: "set-discovery-pref", optOutDiscovery: !!optOutDiscovery });
   }
 
   on(event, callback) {

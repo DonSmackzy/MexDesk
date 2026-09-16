@@ -61,6 +61,7 @@ export function App() {
   // Active Session State
   const [sessionState, setSessionState] = useState("home"); // "home", "calling", "hosting", "controlling"
   const [remoteId, setRemoteId] = useState("");
+  const [remoteAlias, setRemoteAlias] = useState("");
   const [remoteStream, setRemoteStream] = useState(null);
   const [sessionPermissions, setSessionPermissions] = useState({
     control: true,
@@ -84,6 +85,12 @@ export function App() {
       return [];
     }
   });
+
+  // Local Network Discovery Peers & Preferences
+  const [lanPeers, setLanPeers] = useState([]);
+  const [optOutDiscovery, setOptOutDiscovery] = useState(
+    () => localStorage.getItem("mexdesk_opt_out_discovery") === "true"
+  );
 
   // Settings Modal
   const [showSettings, setShowSettings] = useState(false);
@@ -115,6 +122,38 @@ export function App() {
         setMyAlias(data.alias);
         localStorage.setItem("mexdesk_my_alias", data.alias);
       }
+      if (data.lanPeers && Array.isArray(data.lanPeers)) {
+        setLanPeers(data.lanPeers);
+      }
+    });
+
+    client.on("lan-peers", (data) => {
+      if (data.peers && Array.isArray(data.peers)) {
+        setLanPeers(data.peers);
+      }
+    });
+
+    client.on("lan-peer-joined", (data) => {
+      if (data.peer) {
+        setLanPeers((prev) => {
+          const filtered = prev.filter((p) => p.id !== data.peer.id);
+          return [...filtered, data.peer];
+        });
+      }
+    });
+
+    client.on("lan-peer-left", (data) => {
+      if (data.peerId) {
+        setLanPeers((prev) => prev.filter((p) => p.id !== data.peerId));
+      }
+    });
+
+    client.on("lan-peer-updated", (data) => {
+      if (data.peer) {
+        setLanPeers((prev) =>
+          prev.map((p) => (p.id === data.peer.id ? { ...p, ...data.peer } : p))
+        );
+      }
     });
 
     client.on("alias-updated", (data) => {
@@ -130,6 +169,9 @@ export function App() {
     // Incoming Call Handler
     client.on("incoming-call", (data) => {
       setIncomingCall(data);
+      if (data.callerAlias) {
+        setRemoteAlias(data.callerAlias);
+      }
     });
 
     // Ringing State
@@ -143,8 +185,13 @@ export function App() {
       setPasswordChallenge(null);
       setSessionPermissions(data.permissions || {});
 
-      // Add to recent sessions
-      addRecentSession(data.targetId);
+      const activeAlias = data.targetAlias || remoteAlias || "";
+      if (activeAlias) {
+        setRemoteAlias(activeAlias);
+      }
+
+      // Add to recent sessions with alias
+      addRecentSession(data.targetId, activeAlias);
 
       // Initialize WebRTC as Caller / Controller
       const rtc = new WebRTCConnection(client, data.targetId, true);
@@ -242,7 +289,8 @@ export function App() {
       }
     });
 
-    client.connect(myId || null, myAlias || "MexDesk Device", unattendedPassword || null);
+    const storedToken = localStorage.getItem("mexdesk_device_token") || null;
+    client.connect(myId || null, myAlias || "MexDesk Device", unattendedPassword || null, storedToken, optOutDiscovery);
 
     return () => {
       client.disconnect();
@@ -252,6 +300,14 @@ export function App() {
   const handleSaveAlias = (newAlias) => {
     if (signalingRef.current) {
       signalingRef.current.setAlias(newAlias);
+    }
+  };
+
+  const handleSaveDiscoveryOptOut = (optOut) => {
+    setOptOutDiscovery(optOut);
+    localStorage.setItem("mexdesk_opt_out_discovery", optOut ? "true" : "false");
+    if (signalingRef.current) {
+      signalingRef.current.setDiscoveryOptOut(optOut);
     }
   };
 
@@ -334,10 +390,12 @@ export function App() {
 
       await rtc.init(stream);
       signalingRef.current.acceptCall(callerId, permissions);
-      setSessionState("hosting");
     } catch (err) {
-      console.error("[MexDesk] Screen capture cancelled or failed:", err);
+      console.error("[MexDesk] Failed to start host session:", err);
+      setErrorMessage("Could not share screen: " + err.message);
+      setTimeout(() => setErrorMessage(""), 4000);
       signalingRef.current.rejectCall(callerId, "Screen capture was cancelled.");
+      handleEndSession();
     }
   };
 
@@ -379,6 +437,16 @@ export function App() {
       setTimeout(() => setErrorMessage(""), 4500);
       return;
     }
+
+    // Resolve alias if known locally
+    const knownLan = lanPeers.find(
+      (p) => p.id === cleanTarget || (p.alias && p.alias.toLowerCase() === cleanTarget.toLowerCase())
+    );
+    const knownRecent = recentSessions.find(
+      (s) => s.id === cleanTarget || (s.alias && s.alias.toLowerCase() === cleanTarget.toLowerCase())
+    );
+    const resolvedAlias = knownLan?.alias || knownRecent?.alias || "";
+    setRemoteAlias(resolvedAlias);
 
     setRemoteId(cleanTarget);
     setErrorMessage("");
@@ -464,6 +532,8 @@ export function App() {
           unattendedPassword={unattendedPassword}
           onConfigurePassword={() => setShowSettings(true)}
           onOpenSettings={() => setShowSettings(true)}
+          lanPeers={lanPeers}
+          onRefreshLanPeers={() => signalingRef.current?.discoverLan()}
         />
       )}
 
@@ -472,6 +542,7 @@ export function App() {
           webrtc={webrtcRef.current}
           remoteStream={remoteStream}
           targetPeerId={remoteId}
+          targetPeerAlias={remoteAlias}
           permissions={sessionPermissions}
           onDisconnect={() => handleEndSession("You ended the session.")}
           unreadChatCount={unreadChatCount}
@@ -489,7 +560,7 @@ export function App() {
               Active Host Session
             </span>
             <h2 className="text-xl font-bold text-slate-800">
-              Sharing screen with Desk <span className="font-mono text-mexdesk-red">{remoteId}</span>
+              Sharing screen with Desk <span className="font-mono text-mexdesk-red">{remoteAlias ? `${remoteAlias} (${remoteId})` : remoteId}</span>
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               The remote desk can view and control your computer according to granted permissions.
@@ -514,7 +585,9 @@ export function App() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-800">Connecting to Remote Desk...</h3>
-              <p className="text-xs font-mono text-mexdesk-red font-semibold mt-1">{remoteId}</p>
+              <p className="text-xs font-mono text-mexdesk-red font-semibold mt-1">
+                {remoteAlias ? `${remoteAlias} (${remoteId})` : remoteId}
+              </p>
               <p className="text-[11px] text-slate-400 mt-1">Waiting for remote user to accept...</p>
             </div>
             <button
@@ -543,6 +616,8 @@ export function App() {
           onSavePassword={handleSavePassword}
           signalingUrl={signalingUrl}
           onSaveSignalingUrl={handleSaveSignalingUrl}
+          optOutDiscovery={optOutDiscovery}
+          onSaveDiscoveryOptOut={handleSaveDiscoveryOptOut}
           onClose={() => setShowSettings(false)}
         />
       )}

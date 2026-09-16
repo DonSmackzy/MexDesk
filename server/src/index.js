@@ -263,9 +263,39 @@ function sendToPeer(peerId, message) {
   return false;
 }
 
-wss.on("connection", (ws) => {
+function getSameLanPeers(clientIp, excludePeerId) {
+  if (!clientIp) return [];
+  const results = [];
+  for (const peer of peers.values()) {
+    if (peer.ip === clientIp && peer.id !== excludePeerId && !peer.optOutDiscovery) {
+      results.push({
+        id: peer.id,
+        alias: peer.alias,
+        status: peer.status,
+        systemInfo: peer.systemInfo
+      });
+    }
+  }
+  return results;
+}
+
+function broadcastLanPeerEvent(clientIp, excludePeerId, eventPayload) {
+  if (!clientIp) return;
+  for (const peer of peers.values()) {
+    if (peer.ip === clientIp && peer.id !== excludePeerId && !peer.optOutDiscovery) {
+      sendTo(peer.ws, eventPayload);
+    }
+  }
+}
+
+wss.on("connection", (ws, req) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; });
+
+  const rawIp = (req.headers["x-forwarded-for"]
+    ? req.headers["x-forwarded-for"].split(",")[0].trim()
+    : req.socket?.remoteAddress) || "";
+  ws.clientIp = rawIp.replace(/^::ffff:/, ""); // Normalize IPv4-mapped IPv6
 
   ws.on("message", (data) => {
     try {
@@ -292,6 +322,12 @@ wss.on("connection", (ws) => {
           partner.status = "available";
           partner.sessionWith = null;
         }
+      }
+      if (peer && !peer.optOutDiscovery) {
+        broadcastLanPeerEvent(peer.ip, peerId, {
+          type: "lan-peer-left",
+          peerId
+        });
       }
       peers.delete(peerId);
       socketToPeerId.delete(ws);
@@ -386,22 +422,41 @@ function handleMessage(ws, msg) {
           hasUnattendedPassword: !!reg.passwordHash,
           status: "available",
           sessionWith: null,
-          systemInfo: msg.systemInfo || {}
+          systemInfo: msg.systemInfo || {},
+          ip: ws.clientIp || "",
+          optOutDiscovery: !!msg.optOutDiscovery
         };
 
         peers.set(assignedId, peerData);
         socketToPeerId.set(ws, assignedId);
+
+        const sameLanPeers = getSameLanPeers(ws.clientIp, assignedId);
 
         sendTo(ws, {
           type: "registered",
           id: assignedId,
           alias: peerData.alias,
           authToken: issuedToken,
-          hasUnattendedPassword: peerData.hasUnattendedPassword
+          hasUnattendedPassword: peerData.hasUnattendedPassword,
+          lanPeers: sameLanPeers,
+          optOutDiscovery: peerData.optOutDiscovery
         });
 
+        // Broadcast to other peers on same local network
+        if (!peerData.optOutDiscovery) {
+          broadcastLanPeerEvent(peerData.ip, assignedId, {
+            type: "lan-peer-joined",
+            peer: {
+              id: peerData.id,
+              alias: peerData.alias,
+              status: peerData.status,
+              systemInfo: peerData.systemInfo
+            }
+          });
+        }
+
         persistDeviceRegistry();
-        console.log(`[MexDesk Server] Registered peer: ${assignedId} ("${peerData.alias}")`);
+        console.log(`[MexDesk Server] Registered peer: ${assignedId} ("${peerData.alias}") [IP: ${peerData.ip || 'unknown'}]`);
         break;
       }
 
@@ -439,8 +494,61 @@ function handleMessage(ws, msg) {
           success: true
         });
 
+        if (!peer.optOutDiscovery) {
+          broadcastLanPeerEvent(peer.ip, peerId, {
+            type: "lan-peer-updated",
+            peer: {
+              id: peer.id,
+              alias: peer.alias,
+              status: peer.status
+            }
+          });
+        }
+
         persistDeviceRegistry();
         console.log(`[MexDesk Server] Alias updated for ${peerId}: "${peer.alias}"`);
+        break;
+      }
+
+      case "discover-lan": {
+        const peerId = socketToPeerId.get(ws);
+        const lanPeers = getSameLanPeers(ws.clientIp, peerId);
+        sendTo(ws, {
+          type: "lan-peers",
+          peers: lanPeers
+        });
+        break;
+      }
+
+      case "set-discovery-pref": {
+        const peerId = socketToPeerId.get(ws);
+        if (peerId && peers.has(peerId)) {
+          const peer = peers.get(peerId);
+          const wasOptedOut = !!peer.optOutDiscovery;
+          peer.optOutDiscovery = !!msg.optOutDiscovery;
+
+          if (wasOptedOut && !peer.optOutDiscovery) {
+            broadcastLanPeerEvent(peer.ip, peerId, {
+              type: "lan-peer-joined",
+              peer: {
+                id: peer.id,
+                alias: peer.alias,
+                status: peer.status,
+                systemInfo: peer.systemInfo
+              }
+            });
+          } else if (!wasOptedOut && peer.optOutDiscovery) {
+            broadcastLanPeerEvent(peer.ip, peerId, {
+              type: "lan-peer-left",
+              peerId
+            });
+          }
+
+          sendTo(ws, {
+            type: "discovery-pref-updated",
+            optOutDiscovery: peer.optOutDiscovery
+          });
+        }
         break;
       }
 
@@ -554,6 +662,7 @@ function handleMessage(ws, msg) {
               sendTo(ws, {
                 type: "call-accepted",
                 targetId,
+                targetAlias: targetPeer.alias,
                 mode: "unattended",
                 permissions: {
                   control: true,
@@ -625,6 +734,7 @@ function handleMessage(ws, msg) {
         sendTo(caller.ws, {
           type: "call-accepted",
           targetId: hostId,
+          targetAlias: host.alias,
           mode: "interactive",
           permissions: msg.permissions || {
             control: true,
@@ -637,6 +747,7 @@ function handleMessage(ws, msg) {
         sendTo(ws, {
           type: "session-established",
           peerId: callerId,
+          peerAlias: caller.alias,
           permissions: msg.permissions
         });
 

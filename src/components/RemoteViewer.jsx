@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   Square,
   Maximize2,
@@ -12,6 +12,9 @@ import {
   Activity,
   Command,
   ChevronDown,
+  ChevronUp,
+  Pin,
+  PinOff,
   Lock,
   Volume2,
   VolumeX,
@@ -25,6 +28,7 @@ export function RemoteViewer({
   webrtc,
   remoteStream,
   targetPeerId,
+  targetPeerAlias = "",
   permissions = { control: true, fileTransfer: true, clipboard: true, audio: true },
   onDisconnect,
   unreadChatCount,
@@ -38,8 +42,28 @@ export function RemoteViewer({
   const [scaleMode, setScaleMode] = useState("fit"); // "fit", "original", "stretch"
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Default to muted for seamless video autoplay
-  const [showStats, setShowStats] = useState(true);
+  const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState({ fps: 0, bitrate: 0, latency: 0 });
+
+  // Auto-hide Collapsible Toolbar state (3 seconds timeout)
+  const [isToolbarHidden, setIsToolbarHidden] = useState(false);
+  const [isToolbarHovered, setIsToolbarHovered] = useState(false);
+  const [isToolbarPinned, setIsToolbarPinned] = useState(false);
+  const hideTimerRef = useRef(null);
+
+  const resetHideTimer = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (isToolbarPinned || showActionsDropdown || showChat || showFileTransfer || showWhiteboard) {
+      setIsToolbarHidden(false);
+      return;
+    }
+    setIsToolbarHidden(false);
+    hideTimerRef.current = setTimeout(() => {
+      if (!isToolbarHovered) {
+        setIsToolbarHidden(true);
+      }
+    }, 3000);
+  }, [isToolbarPinned, showActionsDropdown, showChat, showFileTransfer, showWhiteboard, isToolbarHovered]);
 
   // Floating menus & drawers
   const [showWhiteboard, setShowWhiteboard] = useState(false);
@@ -169,9 +193,22 @@ export function RemoteViewer({
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  useEffect(() => {
+    resetHideTimer();
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [resetHideTimer]);
+
   return (
     <div
       ref={containerRef}
+      onMouseMove={(e) => {
+        if (e.clientY <= 45) {
+          setIsToolbarHidden(false);
+          resetHideTimer();
+        }
+      }}
       className="relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden select-none outline-none"
       tabIndex={0}
     >
@@ -215,12 +252,62 @@ export function RemoteViewer({
         />
       )}
 
+      {/* Top Edge Hover Hotspot */}
+      <div
+        onMouseEnter={() => {
+          setIsToolbarHidden(false);
+          resetHideTimer();
+        }}
+        className="absolute top-0 left-0 right-0 h-3 z-30 pointer-events-auto"
+      />
+
+      {/* Collapsed Pull-Down Handle */}
+      {isToolbarHidden && (
+        <button
+          onClick={() => {
+            setIsToolbarHidden(false);
+            resetHideTimer();
+          }}
+          onMouseEnter={() => {
+            setIsToolbarHidden(false);
+            resetHideTimer();
+          }}
+          className="absolute top-0 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1 bg-white/95 hover:bg-white backdrop-blur-md border-b border-x border-slate-200/90 rounded-b-xl shadow-md text-slate-700 hover:text-mexdesk-red transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold animate-in slide-in-from-top-2 duration-150"
+          title="Click or hover to reveal toolbar"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span className="truncate max-w-[140px]">{targetPeerAlias || targetPeerId}</span>
+          <ChevronDown size={13} className="text-slate-400" />
+        </button>
+      )}
+
       {/* ANYDESK FLOATING TOOLBAR */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full px-2.5 py-1.5 shadow-floating text-slate-700 space-x-1">
-        {/* Remote desk identifier */}
-        <div className="flex items-center space-x-1.5 px-2 border-r border-slate-200">
-          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span className="text-xs font-mono font-bold text-slate-800">{targetPeerId}</span>
+      <div
+        onMouseEnter={() => {
+          setIsToolbarHovered(true);
+          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+        }}
+        onMouseLeave={() => {
+          setIsToolbarHovered(false);
+          resetHideTimer();
+        }}
+        className={`absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full px-2.5 py-1.5 shadow-floating text-slate-700 space-x-1 transition-all duration-300 transform ${
+          isToolbarHidden
+            ? "-translate-y-16 opacity-0 pointer-events-none"
+            : "translate-y-0 opacity-100 pointer-events-auto"
+        }`}
+      >
+        {/* Remote desk identifier & Alias */}
+        <div className="flex items-center space-x-1.5 px-2 border-r border-slate-200 max-w-[220px]">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+          {targetPeerAlias && targetPeerAlias !== targetPeerId ? (
+            <div className="truncate flex items-baseline space-x-1 min-w-0">
+              <span className="text-xs font-bold text-slate-800 truncate">{targetPeerAlias}</span>
+              <span className="text-[10px] font-mono text-slate-400 shrink-0">({targetPeerId})</span>
+            </div>
+          ) : (
+            <span className="text-xs font-mono font-bold text-slate-800">{targetPeerId}</span>
+          )}
         </div>
 
         {/* Display scaling mode */}
@@ -348,12 +435,41 @@ export function RemoteViewer({
           <Activity size={15} />
         </button>
 
+        {/* Pin / Unpin Toolbar */}
+        <button
+          onClick={() => {
+            const next = !isToolbarPinned;
+            setIsToolbarPinned(next);
+            if (next) {
+              if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+              setIsToolbarHidden(false);
+            } else {
+              resetHideTimer();
+            }
+          }}
+          className={`p-1.5 rounded-full transition ${
+            isToolbarPinned ? "text-mexdesk-red bg-rose-50" : "text-slate-400 hover:bg-slate-100"
+          }`}
+          title={isToolbarPinned ? "Toolbar pinned (always visible)" : "Pin toolbar (stop auto-hide)"}
+        >
+          {isToolbarPinned ? <PinOff size={15} /> : <Pin size={15} />}
+        </button>
+
+        {/* Quick Collapse Button */}
+        <button
+          onClick={() => setIsToolbarHidden(true)}
+          className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+          title="Collapse toolbar (hover top edge to reveal)"
+        >
+          <ChevronUp size={15} />
+        </button>
+
         <div className="h-4 w-px bg-slate-200"></div>
 
         {/* AnyDesk Iconic Red Disconnect Button */}
         <button
           onClick={onDisconnect}
-          className="flex items-center space-x-1 px-3 py-1 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-full shadow-sm transition"
+          className="flex items-center space-x-1 px-3 py-1 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-full shadow-sm transition cursor-pointer"
         >
           <Square size={12} className="fill-white" />
           <span>Disconnect</span>

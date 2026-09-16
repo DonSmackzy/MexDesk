@@ -63,23 +63,51 @@ export class WebRTCConnection {
     // In modern WebRTC Unified Plan: If initiator is receiving (viewer), declare recvonly transceivers
     if (this.isInitiator && !this.localStream) {
       try {
-        this.peerConnection.addTransceiver("video", { direction: "recvonly" });
-        this.peerConnection.addTransceiver("audio", { direction: "recvonly" });
+        const videoTransceiver = this.peerConnection.addTransceiver("video", { direction: "recvonly" });
+        const audioTransceiver = this.peerConnection.addTransceiver("audio", { direction: "recvonly" });
+        if (videoTransceiver?.receiver && "playoutDelayHint" in videoTransceiver.receiver) {
+          videoTransceiver.receiver.playoutDelayHint = 0; // Zero latency playout for instant responsiveness
+        }
       } catch (err) {
         console.warn("[WebRTC] addTransceiver fallback:", err);
       }
     }
 
-    // Add local tracks if host is sharing screen
+    // Add local tracks if host is sharing screen with smoothness optimizations
     if (this.localStream) {
+      const qualityProfile = localStorage.getItem("mexdesk_quality_profile") || "adaptive";
+      const fpsLimit = parseInt(localStorage.getItem("mexdesk_fps_limit") || "60", 10);
+
       this.localStream.getTracks().forEach((track) => {
-        this.peerConnection.addTrack(track, this.localStream);
+        if (track.kind === "video" && "contentHint" in track) {
+          track.contentHint = qualityProfile === "crisp" ? "detail" : "motion";
+        }
+        const sender = this.peerConnection.addTrack(track, this.localStream);
+        if (track.kind === "video" && sender && sender.getParameters) {
+          try {
+            const params = sender.getParameters();
+            if (!params.encodings || params.encodings.length === 0) {
+              params.encodings = [{}];
+            }
+            // "maintain-framerate": Prioritize fluid cursor & animation over pixel perfection on slow connections
+            params.degradationPreference = "maintain-framerate";
+            if (fpsLimit > 0) {
+              params.encodings[0].maxFramerate = fpsLimit;
+            }
+            sender.setParameters(params).catch(() => {});
+          } catch (e) {
+            console.warn("[WebRTC] sender parameters tweak skipped:", e);
+          }
+        }
       });
     }
 
     // Handle remote track (client viewing host screen)
     this.peerConnection.ontrack = (event) => {
       console.log("[WebRTC] ontrack received track:", event.track.kind);
+      if (event.receiver && "playoutDelayHint" in event.receiver) {
+        event.receiver.playoutDelayHint = 0; // Eliminate playout delay
+      }
       this.remoteStream = event.streams[0] || new MediaStream([event.track]);
       this.trigger("remote-stream", this.remoteStream);
     };

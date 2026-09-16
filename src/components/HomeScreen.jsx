@@ -18,6 +18,7 @@ import {
   X,
   Tag,
   AlertCircle,
+  Wifi,
 } from "lucide-react";
 
 export function HomeScreen({
@@ -34,6 +35,8 @@ export function HomeScreen({
   unattendedPassword,
   onConfigurePassword,
   onOpenSettings,
+  lanPeers = [],
+  onRefreshLanPeers,
 }) {
   const [remoteIdInput, setRemoteIdInput] = useState(initialConnectTo || "");
   const [copied, setCopied] = useState(false);
@@ -45,6 +48,11 @@ export function HomeScreen({
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [pendingRemoteId, setPendingRemoteId] = useState("");
   const [inputPassword, setInputPassword] = useState("");
+  const [activeSessionsTab, setActiveSessionsTab] = useState(() => {
+    return lanPeers.length > 0 && (!recentSessions || recentSessions.length === 0)
+      ? "discovered"
+      : "recent";
+  });
 
   const handleCopy = () => {
     if (!myId) return;
@@ -351,123 +359,235 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/* RECENT SESSIONS SECTION */}
+      {/* SESSIONS & LAN DISCOVERY SECTION (ANYDESK STYLE) */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <Clock size={16} className="text-slate-400" />
-            <h2 className="text-sm font-semibold text-slate-800">Recent Sessions</h2>
-            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.2 rounded-full font-medium">
-              {recentSessions.length}
-            </span>
+        <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+          <div className="flex items-center space-x-4">
+            {/* Tab: Recent Sessions */}
+            <button
+              onClick={() => setActiveSessionsTab("recent")}
+              className={`flex items-center space-x-2 pb-1 font-semibold text-xs transition border-b-2 cursor-pointer ${
+                activeSessionsTab === "recent"
+                  ? "border-mexdesk-red text-slate-800"
+                  : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <Clock size={15} />
+              <span>Recent Sessions</span>
+              <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+                {recentSessions.length}
+              </span>
+            </button>
+
+            {/* Tab: Discovered on Network */}
+            <button
+              onClick={() => setActiveSessionsTab("discovered")}
+              className={`flex items-center space-x-2 pb-1 font-semibold text-xs transition border-b-2 cursor-pointer ${
+                activeSessionsTab === "discovered"
+                  ? "border-mexdesk-red text-slate-800"
+                  : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <Wifi size={15} className={lanPeers.length > 0 ? "text-emerald-500" : ""} />
+              <span>Discovered</span>
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                  lanPeers.length > 0
+                    ? "bg-emerald-100 text-emerald-700 font-bold animate-pulse"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {lanPeers.length}
+              </span>
+            </button>
           </div>
+
+          {activeSessionsTab === "discovered" && onRefreshLanPeers && (
+            <button
+              onClick={onRefreshLanPeers}
+              className="flex items-center space-x-1 text-xs text-slate-500 hover:text-mexdesk-red transition cursor-pointer"
+              title="Rescan local network for MexDesk clients"
+            >
+              <RefreshCw size={13} />
+              <span>Rescan Network</span>
+            </button>
+          )}
         </div>
 
-        {recentSessions.length === 0 ? (
-          <div className="text-center py-8 text-slate-400">
-            <Monitor size={36} className="mx-auto text-slate-200 mb-2" />
-            <p className="text-xs">No recent sessions yet.</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Desks you connect with will appear here for fast one-click reconnection.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {recentSessions.map((session) => {
-              const isEditingThis = editingRecentId === session.id;
-
-              return (
+        {/* TAB CONTENT: DISCOVERED ON LOCAL NETWORK */}
+        {activeSessionsTab === "discovered" && (
+          lanPeers.length === 0 ? (
+            <div className="text-center py-10 text-slate-400">
+              <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                <Wifi size={24} />
+              </div>
+              <h3 className="text-xs font-semibold text-slate-700">No other MexDesk devices found on this network</h3>
+              <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                Open MexDesk on another computer connected to your local network or WiFi. It will automatically be detected and listed here for instant connection.
+              </p>
+              {onRefreshLanPeers && (
+                <button
+                  onClick={onRefreshLanPeers}
+                  className="mt-3 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  <RefreshCw size={12} />
+                  <span>Scan Again</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {lanPeers.map((peer) => (
                 <div
-                  key={session.id}
-                  className="group p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-slate-300 hover:shadow-sm transition flex items-center justify-between"
+                  key={peer.id}
+                  className="group p-3 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/30 to-white hover:border-emerald-400 hover:shadow-md transition flex items-center justify-between"
                 >
                   <div className="flex items-center space-x-3 overflow-hidden flex-1 min-w-0 mr-2">
-                    <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-mexdesk-red shrink-0">
+                    <div className="relative w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                       <Monitor size={20} />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white animate-pulse"></span>
                     </div>
 
                     <div className="overflow-hidden flex-1 min-w-0">
-                      {isEditingThis ? (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (onRenameRecent) {
-                              onRenameRecent(session.id, editingRecentAliasInput);
-                            }
-                            setEditingRecentId(null);
-                          }}
-                          className="flex items-center space-x-1"
-                        >
-                          <input
-                            type="text"
-                            autoFocus
-                            value={editingRecentAliasInput}
-                            onChange={(e) => setEditingRecentAliasInput(e.target.value)}
-                            placeholder="Remote Desk Alias"
-                            className="w-full px-2 py-0.5 text-xs bg-white border border-mexdesk-red rounded font-medium text-slate-800 focus:outline-none"
-                          />
-                          <button
-                            type="submit"
-                            className="p-1 text-emerald-600 hover:text-emerald-700 font-bold text-xs"
-                            title="Save Alias"
-                          >
-                            <Check size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingRecentId(null)}
-                            className="p-1 text-slate-400 hover:text-slate-600 text-xs"
-                            title="Cancel"
-                          >
-                            <X size={13} />
-                          </button>
-                        </form>
-                      ) : (
-                        <div>
-                          <div className="flex items-center space-x-1.5 group/alias">
-                            <h3 className="text-xs font-semibold text-slate-800 truncate">
-                              {session.alias || "Remote Desk"}
-                            </h3>
-                            <button
-                              onClick={() => {
-                                setEditingRecentId(session.id);
-                                setEditingRecentAliasInput(session.alias || `Desk ${session.id}`);
-                              }}
-                              className="opacity-0 group-hover/alias:opacity-100 p-0.5 text-slate-400 hover:text-mexdesk-red transition"
-                              title="Rename remote client alias"
-                            >
-                              <Pencil size={11} />
-                            </button>
-                          </div>
-                          <p className="text-[11px] font-mono text-slate-400">{session.id}</p>
-                          <span className="text-[10px] text-slate-400 block">
-                            {new Date(session.timestamp).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex items-center space-x-1.5">
+                        <h3 className="text-xs font-bold text-slate-800 truncate">
+                          {peer.alias || "MexDesk Client"}
+                        </h3>
+                        <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.2 rounded">
+                          LAN
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-mono text-slate-500 font-semibold">{peer.id}</p>
+                      <span className="text-[10px] text-emerald-600 font-medium block">
+                        Online • Same Network
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-1 shrink-0 opacity-80 group-hover:opacity-100">
+                  <div className="flex items-center space-x-1 shrink-0">
                     <button
-                      onClick={() => handleStartConnect("full-control", session.id)}
-                      className="p-2 rounded-lg bg-mexdesk-red hover:bg-mexdesk-crimson text-white transition shadow-sm"
-                      title="Connect"
+                      onClick={() => handleStartConnect("full-control", peer.id)}
+                      className="px-3 py-1.5 rounded-lg bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold transition shadow-sm flex items-center space-x-1 cursor-pointer"
+                      title="Connect to this LAN desk"
                     >
-                      <ArrowRight size={14} />
-                    </button>
-                    <button
-                      onClick={() => onRemoveRecent(session.id)}
-                      className="p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-rose-600 transition"
-                      title="Remove from history"
-                    >
-                      <Trash2 size={14} />
+                      <span>Connect</span>
+                      <ArrowRight size={13} />
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* TAB CONTENT: RECENT SESSIONS */}
+        {activeSessionsTab === "recent" && (
+          recentSessions.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">
+              <Monitor size={36} className="mx-auto text-slate-200 mb-2" />
+              <p className="text-xs">No recent sessions yet.</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Desks you connect with will appear here for fast one-click reconnection.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {recentSessions.map((session) => {
+                const isEditingThis = editingRecentId === session.id;
+
+                return (
+                  <div
+                    key={session.id}
+                    className="group p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-slate-300 hover:shadow-sm transition flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-3 overflow-hidden flex-1 min-w-0 mr-2">
+                      <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-mexdesk-red shrink-0">
+                        <Monitor size={20} />
+                      </div>
+
+                      <div className="overflow-hidden flex-1 min-w-0">
+                        {isEditingThis ? (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (onRenameRecent) {
+                                onRenameRecent(session.id, editingRecentAliasInput);
+                              }
+                              setEditingRecentId(null);
+                            }}
+                            className="flex items-center space-x-1"
+                          >
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingRecentAliasInput}
+                              onChange={(e) => setEditingRecentAliasInput(e.target.value)}
+                              placeholder="Remote Desk Alias"
+                              className="w-full px-2 py-0.5 text-xs bg-white border border-mexdesk-red rounded font-medium text-slate-800 focus:outline-none"
+                            />
+                            <button
+                              type="submit"
+                              className="p-1 text-emerald-600 hover:text-emerald-700 font-bold text-xs cursor-pointer"
+                              title="Save Alias"
+                            >
+                              <Check size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingRecentId(null)}
+                              className="p-1 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                              title="Cancel"
+                            >
+                              <X size={13} />
+                            </button>
+                          </form>
+                        ) : (
+                          <div>
+                            <div className="flex items-center space-x-1.5 group/alias">
+                              <h3 className="text-xs font-semibold text-slate-800 truncate">
+                                {session.alias || "Remote Desk"}
+                              </h3>
+                              <button
+                                onClick={() => {
+                                  setEditingRecentId(session.id);
+                                  setEditingRecentAliasInput(session.alias || `Desk ${session.id}`);
+                                }}
+                                className="opacity-0 group-hover/alias:opacity-100 p-0.5 text-slate-400 hover:text-mexdesk-red transition cursor-pointer"
+                                title="Rename remote client alias"
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            </div>
+                            <p className="text-[11px] font-mono text-slate-400">{session.id}</p>
+                            <span className="text-[10px] text-slate-400 block">
+                              {new Date(session.timestamp).toLocaleDateString()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-1 shrink-0 opacity-80 group-hover:opacity-100">
+                      <button
+                        onClick={() => handleStartConnect("full-control", session.id)}
+                        className="p-2 rounded-lg bg-mexdesk-red hover:bg-mexdesk-crimson text-white transition shadow-sm cursor-pointer"
+                        title="Connect"
+                      >
+                        <ArrowRight size={14} />
+                      </button>
+                      <button
+                        onClick={() => onRemoveRecent(session.id)}
+                        className="p-2 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                        title="Remove from history"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
 
