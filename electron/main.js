@@ -50,11 +50,14 @@ function createWindow() {
     }
   });
 
-  // Navigation Guard: Block arbitrary URL navigation
+  // Navigation Guard: Block arbitrary URL navigation (whitelist cloud + local)
+  const ALLOWED_ORIGINS = ["https://mexdesk.onrender.com"];
   mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
     try {
       const parsed = new URL(navigationUrl);
-      if (parsed.protocol !== "file:" && !navigationUrl.startsWith("http://localhost:") && !navigationUrl.startsWith("http://127.0.0.1:")) {
+      const isLocal = parsed.protocol === "file:" || navigationUrl.startsWith("http://localhost:") || navigationUrl.startsWith("http://127.0.0.1:");
+      const isAllowed = ALLOWED_ORIGINS.some((origin) => navigationUrl.startsWith(origin));
+      if (!isLocal && !isAllowed) {
         console.warn(`[MexDesk Main] Blocked unauthorized navigation to: ${navigationUrl}`);
         event.preventDefault();
       }
@@ -69,21 +72,27 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  // Load Vite dev server URL or local index.html in production
+  // Load URL: Cloud primary in production, Vite dev server in development
+  const CLOUD_URL = "https://mexdesk.onrender.com";
   const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
+  const localIndexPath = path.join(__dirname, "../dist/index.html");
+
   if (process.env.NODE_ENV === "development" || !app.isPackaged) {
+    // DEV MODE: Vite dev server → fallback to local dist
     mainWindow.loadURL(devUrl).catch(() => {
-      // Retry or load built dist if dev server not running
-      const indexPath = path.join(__dirname, "../dist/index.html");
-      mainWindow.loadFile(indexPath).catch((err) => {
+      mainWindow.loadFile(localIndexPath).catch((err) => {
         console.warn("[MexDesk Main] Local dist load fallback:", err.message);
         setTimeout(() => mainWindow.loadURL(devUrl).catch(() => {}), 1500);
       });
     });
   } else {
-    const indexPath = path.join(__dirname, "../dist/index.html");
-    mainWindow.loadFile(indexPath).catch((err) => {
-      console.error("[MexDesk Main] Failed to load production dist/index.html:", err);
+    // PRODUCTION: Load live cloud app → fallback to local dist (offline mode)
+    console.log(`[MexDesk Main] Loading cloud app: ${CLOUD_URL}`);
+    mainWindow.loadURL(CLOUD_URL).catch((err) => {
+      console.warn(`[MexDesk Main] Cloud URL failed (${err.message}), falling back to local dist/index.html`);
+      mainWindow.loadFile(localIndexPath).catch((localErr) => {
+        console.error("[MexDesk Main] Local fallback also failed:", localErr.message);
+      });
     });
   }
 
