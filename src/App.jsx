@@ -169,8 +169,8 @@ export function App() {
         } else if (state === "failed" || state === "closed") {
           if (!callerDisconnectTimer) {
             callerDisconnectTimer = setTimeout(() => {
-              handleEndSession("Connection disconnected");
-            }, 4000);
+              handleEndSession("Connection disconnected (ICE failure)");
+            }, 12000);
           }
         }
       });
@@ -327,7 +327,7 @@ export function App() {
           if (!hostDisconnectTimer) {
             hostDisconnectTimer = setTimeout(() => {
               handleEndSession("Remote desk closed connection");
-            }, 4000);
+            }, 12000);
           }
         }
       });

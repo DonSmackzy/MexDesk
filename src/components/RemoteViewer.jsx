@@ -37,7 +37,7 @@ export function RemoteViewer({
   // UI state
   const [scaleMode, setScaleMode] = useState("fit"); // "fit", "original", "stretch"
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(true); // Default to muted for seamless video autoplay
   const [showStats, setShowStats] = useState(true);
   const [stats, setStats] = useState({ fps: 0, bitrate: 0, latency: 0 });
 
@@ -56,11 +56,22 @@ export function RemoteViewer({
 
   // Bind remote stream to video element
   useEffect(() => {
-    if (videoRef.current && remoteStream) {
-      videoRef.current.srcObject = remoteStream;
-      videoRef.current.play().catch((e) => console.warn("Auto-play error:", e));
+    const video = videoRef.current;
+    if (video && remoteStream) {
+      video.srcObject = remoteStream;
+      video.muted = isMuted;
+      video.playsInline = true;
+
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((e) => {
+          console.warn("[MexDesk Viewer] Autoplay blocked, forcing muted playback:", e);
+          video.muted = true;
+          video.play().catch((err) => console.warn("[MexDesk Viewer] Retry play failed:", err));
+        });
+      }
     }
-  }, [remoteStream]);
+  }, [remoteStream, isMuted]);
 
   // Attach input capture
   useEffect(() => {
@@ -170,6 +181,8 @@ export function RemoteViewer({
         autoPlay
         playsInline
         muted={isMuted}
+        onLoadedMetadata={() => videoRef.current?.play().catch(() => {})}
+        onCanPlay={() => videoRef.current?.play().catch(() => {})}
         className={`max-w-full max-h-full transition-all duration-150 ${
           scaleMode === "original"
             ? "object-none"

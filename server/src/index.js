@@ -255,7 +255,7 @@ function sendTo(ws, message) {
 }
 
 function sendToPeer(peerId, message) {
-  const peer = peers.get(peerId);
+  const peer = findPeer(peerId);
   if (peer && peer.ws) {
     sendTo(peer.ws, message);
     return true;

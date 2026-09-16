@@ -22,6 +22,8 @@ export class WebRTCConnection {
     this.handlers = new Map();
     this.statsTimer = null;
 
+    this.candidateQueue = [];
+
     let customTurn = null;
     try {
       const stored = localStorage.getItem("mexdesk_turn_config");
@@ -33,9 +35,11 @@ export class WebRTCConnection {
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
       { urls: "stun:stun3.l.google.com:19302" },
-      { urls: "stun:stun.services.mozilla.com" },
+      { urls: "stun:stun4.l.google.com:19302" },
+      { urls: "stun:stun.cloudflare.com:3478" },
+      { urls: "stun:stun.nextcloud.com:443" },
       { urls: "stun:global.stun.twilio.com:3478" },
-      // Fallback TURN relay servers for symmetric NAT and cellular mobile network traversal
+      // Fallback TURN relay servers
       {
         urls: [
           "turn:openrelay.metered.ca:80",
@@ -56,6 +60,16 @@ export class WebRTCConnection {
       iceCandidatePoolSize: 10,
     });
 
+    // In modern WebRTC Unified Plan: If initiator is receiving (viewer), declare recvonly transceivers
+    if (this.isInitiator && !this.localStream) {
+      try {
+        this.peerConnection.addTransceiver("video", { direction: "recvonly" });
+        this.peerConnection.addTransceiver("audio", { direction: "recvonly" });
+      } catch (err) {
+        console.warn("[WebRTC] addTransceiver fallback:", err);
+      }
+    }
+
     // Add local tracks if host is sharing screen
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
@@ -65,6 +79,7 @@ export class WebRTCConnection {
 
     // Handle remote track (client viewing host screen)
     this.peerConnection.ontrack = (event) => {
+      console.log("[WebRTC] ontrack received track:", event.track.kind);
       this.remoteStream = event.streams[0] || new MediaStream([event.track]);
       this.trigger("remote-stream", this.remoteStream);
     };
@@ -78,6 +93,7 @@ export class WebRTCConnection {
 
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection.connectionState;
+      console.log(`[WebRTC] PeerConnection state changed: ${state}`);
       this.trigger("connection-state", state);
       if (state === "connected") {
         this.startStatsMonitoring();
@@ -88,12 +104,14 @@ export class WebRTCConnection {
 
     this.peerConnection.oniceconnectionstatechange = () => {
       const iceState = this.peerConnection.iceConnectionState;
+      console.log(`[WebRTC] ICE Connection state: ${iceState}`);
       if (iceState === "failed") {
-        try {
-          if (typeof this.peerConnection.restartIce === "function") {
+        if (typeof this.peerConnection.restartIce === "function") {
+          try {
+            console.log("[WebRTC] Restarting ICE negotiation...");
             this.peerConnection.restartIce();
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
       }
     };
 
@@ -112,7 +130,6 @@ export class WebRTCConnection {
   createDataChannels() {
     const channelNames = ["control", "file", "chat", "whiteboard", "clipboard"];
     channelNames.forEach((name) => {
-      const reliable = name !== "control"; // control channel can have low latency ordered=false if needed, but ordered=true is safe
       const channel = this.peerConnection.createDataChannel(name, {
         ordered: true,
       });
@@ -128,10 +145,12 @@ export class WebRTCConnection {
     }
 
     channel.onopen = () => {
+      console.log(`[WebRTC] DataChannel '${name}' is now OPEN`);
       this.trigger("channel-open", { name });
     };
 
     channel.onclose = () => {
+      console.log(`[WebRTC] DataChannel '${name}' CLOSED`);
       this.trigger("channel-close", { name });
     };
 
@@ -151,10 +170,7 @@ export class WebRTCConnection {
 
   async createOffer() {
     if (!this.peerConnection) return;
-    const offer = await this.peerConnection.createOffer({
-      offerToReceiveVideo: true,
-      offerToReceiveAudio: true,
-    });
+    const offer = await this.peerConnection.createOffer();
     await this.peerConnection.setLocalDescription(offer);
     this.signaling.sendOffer(this.targetPeerId, offer);
   }
@@ -162,6 +178,8 @@ export class WebRTCConnection {
   async handleOffer(offer) {
     if (!this.peerConnection) return;
     await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    await this.processQueuedCandidates();
+
     const answer = await this.peerConnection.createAnswer();
     await this.peerConnection.setLocalDescription(answer);
     this.signaling.sendAnswer(this.targetPeerId, answer);
@@ -170,14 +188,32 @@ export class WebRTCConnection {
   async handleAnswer(answer) {
     if (!this.peerConnection) return;
     await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    await this.processQueuedCandidates();
   }
 
   async handleIceCandidate(candidate) {
     if (!this.peerConnection) return;
+    // Guard against race condition: if remote description is not set yet, queue candidate
+    if (!this.peerConnection.remoteDescription || !this.peerConnection.remoteDescription.type) {
+      this.candidateQueue.push(candidate);
+      return;
+    }
     try {
       await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (e) {
       console.warn("[WebRTC] Error adding ICE candidate:", e);
+    }
+  }
+
+  async processQueuedCandidates() {
+    if (!this.peerConnection || !this.peerConnection.remoteDescription) return;
+    while (this.candidateQueue.length > 0) {
+      const candidate = this.candidateQueue.shift();
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.warn("[WebRTC] Error processing queued candidate:", e);
+      }
     }
   }
 
