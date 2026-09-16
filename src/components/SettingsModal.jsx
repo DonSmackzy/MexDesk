@@ -8,8 +8,10 @@ import {
   KeyRound,
   Shield,
   Check,
-  Server
+  Server,
+  Download,
 } from "lucide-react";
+import AegisLogo from "./AegisLogo";
 
 export function SettingsModal({
   unattendedPassword,
@@ -18,7 +20,9 @@ export function SettingsModal({
   onSaveSignalingUrl,
   optOutDiscovery = false,
   onSaveDiscoveryOptOut,
-  onClose
+  updatePref = "prompt",
+  onSaveUpdatePref,
+  onClose,
 }) {
   const [activeTab, setActiveTab] = useState("security");
   const [password, setPassword] = useState(unattendedPassword || "");
@@ -26,6 +30,7 @@ export function SettingsModal({
   const [allowDiscovery, setAllowDiscovery] = useState(!optOutDiscovery);
   const [fpsLimit, setFpsLimit] = useState(localStorage.getItem("mexdesk_fps_limit") || "60");
   const [qualityProfile, setQualityProfile] = useState(localStorage.getItem("mexdesk_quality_profile") || "adaptive");
+  const [localUpdatePref, setLocalUpdatePref] = useState(updatePref);
   const [savedMessage, setSavedMessage] = useState("");
 
   const handleSaveSecurity = (e) => {
@@ -49,9 +54,22 @@ export function SettingsModal({
     if (onSaveDiscoveryOptOut) {
       onSaveDiscoveryOptOut(!allowDiscovery);
     }
+    if (onSaveUpdatePref) {
+      onSaveUpdatePref(localUpdatePref);
+    }
     setSavedMessage("Network settings updated!");
     setTimeout(() => setSavedMessage(""), 2500);
   };
+
+  const tabClass = (tab) =>
+    `w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+      activeTab === tab
+        ? "bg-[#FEE2E2] text-[#DC2626] border border-red-100"
+        : "text-slate-600 hover:bg-slate-100"
+    }`;
+
+  const inputFocusClass = "focus:outline-none focus:ring-2 focus:ring-[#DC2626]/30 focus:border-[#DC2626]";
+  const btnPrimaryClass = "px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-semibold rounded-lg shadow-sm transition";
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -59,10 +77,8 @@ export function SettingsModal({
         {/* Header */}
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-2">
-            <div className="w-7 h-7 rounded-lg bg-mexdesk-red text-white flex items-center justify-center font-bold text-xs">
-              M
-            </div>
-            <h2 className="text-sm font-bold text-slate-800">MexDesk Settings</h2>
+            <AegisLogo size={28} />
+            <h2 className="text-sm font-bold text-slate-800">AegisDesk Settings</h2>
           </div>
           <button
             onClick={onClose}
@@ -75,50 +91,27 @@ export function SettingsModal({
         <div className="flex-1 flex overflow-hidden">
           {/* Left Navigation */}
           <div className="w-48 bg-slate-50 border-r border-slate-200 p-2 space-y-1">
-            <button
-              onClick={() => setActiveTab("security")}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                activeTab === "security"
-                  ? "bg-rose-50 text-mexdesk-red border border-rose-100"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
+            <button onClick={() => setActiveTab("security")} className={tabClass("security")}>
               <Lock size={15} />
               <span>Security</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab("display")}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                activeTab === "display"
-                  ? "bg-rose-50 text-mexdesk-red border border-rose-100"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
+            <button onClick={() => setActiveTab("display")} className={tabClass("display")}>
               <Monitor size={15} />
               <span>Display & Audio</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab("network")}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                activeTab === "network"
-                  ? "bg-rose-50 text-mexdesk-red border border-rose-100"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
+            <button onClick={() => setActiveTab("network")} className={tabClass("network")}>
               <Network size={15} />
               <span>Network</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab("about")}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                activeTab === "about"
-                  ? "bg-rose-50 text-mexdesk-red border border-rose-100"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
+            <button onClick={() => setActiveTab("updates")} className={tabClass("updates")}>
+              <Download size={15} />
+              <span>Updates</span>
+            </button>
+
+            <button onClick={() => setActiveTab("about")} className={tabClass("about")}>
               <Info size={15} />
               <span>About</span>
             </button>
@@ -138,7 +131,7 @@ export function SettingsModal({
               <form onSubmit={handleSaveSecurity} className="space-y-5">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-1.5">
-                    <KeyRound size={16} className="text-mexdesk-red" />
+                    <KeyRound size={16} className="text-[#DC2626]" />
                     <span>Unattended Access</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
@@ -156,7 +149,7 @@ export function SettingsModal({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Leave blank to disable unattended access"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-mexdesk-red"
+                      className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 ${inputFocusClass}`}
                     />
                   </div>
 
@@ -169,10 +162,7 @@ export function SettingsModal({
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition"
-                >
+                <button type="submit" className={btnPrimaryClass}>
                   Save Security Settings
                 </button>
               </form>
@@ -196,7 +186,7 @@ export function SettingsModal({
                     <select
                       value={fpsLimit}
                       onChange={(e) => setFpsLimit(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-mexdesk-red"
+                      className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 ${inputFocusClass}`}
                     >
                       <option value="60">60 FPS (Ultra Smooth - High Bandwidth)</option>
                       <option value="30">30 FPS (Balanced Bandwidth)</option>
@@ -211,7 +201,7 @@ export function SettingsModal({
                     <select
                       value={qualityProfile}
                       onChange={(e) => setQualityProfile(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-mexdesk-red"
+                      className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 ${inputFocusClass}`}
                     >
                       <option value="adaptive">Adaptive (Auto-balance bitrate and latency)</option>
                       <option value="crisp">Crisp Text (Optimized for documents and code)</option>
@@ -220,10 +210,7 @@ export function SettingsModal({
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition"
-                >
+                <button type="submit" className={btnPrimaryClass}>
                   Save Display Settings
                 </button>
               </form>
@@ -234,7 +221,7 @@ export function SettingsModal({
               <form onSubmit={handleSaveNetwork} className="space-y-5">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-1.5">
-                    <Server size={16} className="text-mexdesk-red" />
+                    <Server size={16} className="text-[#DC2626]" />
                     <span>Signaling & Relay Server</span>
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
@@ -250,7 +237,7 @@ export function SettingsModal({
                     type="text"
                     value={serverUrl}
                     onChange={(e) => setServerUrl(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-mexdesk-red"
+                    className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 ${inputFocusClass}`}
                   />
                 </div>
 
@@ -260,50 +247,112 @@ export function SettingsModal({
                       type="checkbox"
                       checked={allowDiscovery}
                       onChange={(e) => setAllowDiscovery(e.target.checked)}
-                      className="w-4 h-4 text-mexdesk-red rounded border-slate-300 focus:ring-mexdesk-red"
+                      className="w-4 h-4 text-[#DC2626] rounded border-slate-300 focus:ring-[#DC2626]"
                     />
                     <span className="text-xs font-semibold text-slate-800">
                       Allow LAN Discovery
                     </span>
                   </label>
                   <p className="text-[11px] text-slate-500 pl-6.5">
-                    Allow other computers running MexDesk on the same local network / WiFi to discover this desk.
+                    Allow other computers running AegisDesk on the same local network / WiFi to discover this desk.
                   </p>
                 </div>
 
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition cursor-pointer"
-                >
+                <button type="submit" className={btnPrimaryClass}>
                   Apply Network Settings
                 </button>
               </form>
+            )}
+
+            {/* TAB: UPDATES */}
+            {activeTab === "updates" && (
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-1.5">
+                    <Download size={16} className="text-[#DC2626]" />
+                    <span>Update Preferences</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Choose how AegisDesk handles new version updates.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="flex items-start space-x-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition">
+                    <input
+                      type="radio"
+                      name="updatePref"
+                      value="auto"
+                      checked={localUpdatePref === "auto"}
+                      onChange={() => {
+                        setLocalUpdatePref("auto");
+                        if (onSaveUpdatePref) onSaveUpdatePref("auto");
+                        setSavedMessage("Update preference saved!");
+                        setTimeout(() => setSavedMessage(""), 2500);
+                      }}
+                      className="mt-0.5 text-[#DC2626] focus:ring-[#DC2626]"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-slate-800 block">Automatically apply updates</span>
+                      <span className="text-[11px] text-slate-500">
+                        Updates are applied silently when the app reloads. No action needed from you.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start space-x-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition">
+                    <input
+                      type="radio"
+                      name="updatePref"
+                      value="prompt"
+                      checked={localUpdatePref === "prompt"}
+                      onChange={() => {
+                        setLocalUpdatePref("prompt");
+                        if (onSaveUpdatePref) onSaveUpdatePref("prompt");
+                        setSavedMessage("Update preference saved!");
+                        setTimeout(() => setSavedMessage(""), 2500);
+                      }}
+                      className="mt-0.5 text-[#DC2626] focus:ring-[#DC2626]"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-slate-800 block">Prompt before updating</span>
+                      <span className="text-[11px] text-slate-500">
+                        A banner will appear when a new version is available, letting you choose when to update.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-[11px] text-slate-500">
+                    AegisDesk loads the latest UI from the cloud on each launch. Updates affect the web-layer interface. The desktop shell updates separately via new executable downloads.
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* TAB: ABOUT */}
             {activeTab === "about" && (
               <div className="space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-2xl bg-mexdesk-red flex items-center justify-center text-white font-bold text-xl shadow-md">
-                    M
-                  </div>
+                  <AegisLogo size={48} />
                   <div>
-                    <h3 className="text-base font-bold text-slate-800">MexDesk</h3>
-                    <p className="text-xs text-slate-500">Version 1.0.0 (Red & White Edition)</p>
+                    <h3 className="text-base font-bold text-slate-800">AegisDesk</h3>
+                    <p className="text-xs text-slate-500">Version 1.1.0 (Enterprise Edition)</p>
                   </div>
                 </div>
 
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-2">
                   <p>
-                    <strong>MexDesk</strong> is a next-generation AnyDesk alternative built on high-performance
+                    <strong>AegisDesk</strong> is an enterprise-grade remote desktop solution built on high-performance
                     WebRTC peer-to-peer streaming, React 18, and Electron.
                   </p>
                   <ul className="list-disc list-inside text-slate-500 space-y-1">
                     <li>End-to-End DTLS/SRTP Encryption</li>
                     <li>Sub-30ms Video Latency</li>
-                    <li>Dual-Pane File Transfer</li>
-                    <li>Interactive Live Whiteboard Annotation</li>
-                    <li>Zero-Lag Session Recording</li>
+                    <li>Multi-Session Concurrent Connections</li>
+                    <li>LAN Peer Discovery</li>
+                    <li>Unattended Access with Scrypt-Hashed Passwords</li>
                   </ul>
                 </div>
               </div>

@@ -16,7 +16,7 @@ function createWindow() {
     minWidth: 980,
     minHeight: 640,
     frame: false, // Frameless window with AnyDesk styled custom title bar
-    title: "MexDesk",
+    title: "AegisDesk",
     icon: path.join(__dirname, "../public/logo.svg"),
     backgroundColor: "#F8FAFC",
     webPreferences: {
@@ -38,7 +38,7 @@ function createWindow() {
 
   // Log navigation load failures
   mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
-    console.error(`[MexDesk Main] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+    console.error(`[AegisDesk Main] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
   });
 
   // F12 or Ctrl+Shift+I toggles DevTools for diagnostics
@@ -58,7 +58,7 @@ function createWindow() {
       const isLocal = parsed.protocol === "file:" || navigationUrl.startsWith("http://localhost:") || navigationUrl.startsWith("http://127.0.0.1:");
       const isAllowed = ALLOWED_ORIGINS.some((origin) => navigationUrl.startsWith(origin));
       if (!isLocal && !isAllowed) {
-        console.warn(`[MexDesk Main] Blocked unauthorized navigation to: ${navigationUrl}`);
+        console.warn(`[AegisDesk Main] Blocked unauthorized navigation to: ${navigationUrl}`);
         event.preventDefault();
       }
     } catch {
@@ -68,7 +68,7 @@ function createWindow() {
 
   // Window Open Guard: Block unhandled external window pops
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    console.warn(`[MexDesk Main] Blocked window.open request for: ${url}`);
+    console.warn(`[AegisDesk Main] Blocked window.open request for: ${url}`);
     return { action: "deny" };
   });
 
@@ -81,17 +81,17 @@ function createWindow() {
     // DEV MODE: Vite dev server → fallback to local dist
     mainWindow.loadURL(devUrl).catch(() => {
       mainWindow.loadFile(localIndexPath).catch((err) => {
-        console.warn("[MexDesk Main] Local dist load fallback:", err.message);
+        console.warn("[AegisDesk Main] Local dist load fallback:", err.message);
         setTimeout(() => mainWindow.loadURL(devUrl).catch(() => {}), 1500);
       });
     });
   } else {
     // PRODUCTION: Load live cloud app → fallback to local dist (offline mode)
-    console.log(`[MexDesk Main] Loading cloud app: ${CLOUD_URL}`);
+    console.log(`[AegisDesk Main] Loading cloud app: ${CLOUD_URL}`);
     mainWindow.loadURL(CLOUD_URL).catch((err) => {
-      console.warn(`[MexDesk Main] Cloud URL failed (${err.message}), falling back to local dist/index.html`);
+      console.warn(`[AegisDesk Main] Cloud URL failed (${err.message}), falling back to local dist/index.html`);
       mainWindow.loadFile(localIndexPath).catch((localErr) => {
-        console.error("[MexDesk Main] Local fallback also failed:", localErr.message);
+        console.error("[AegisDesk Main] Local fallback also failed:", localErr.message);
       });
     });
   }
@@ -121,13 +121,13 @@ if (!gotTheLock) {
           const sources = await desktopCapturer.getSources({ types: ["screen"] });
           const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
           if (primarySource) {
-            console.log(`[MexDesk Main] Seamlessly capturing screen: ${primarySource.name} (${primarySource.id})`);
+            console.log(`[AegisDesk Main] Seamlessly capturing screen: ${primarySource.name} (${primarySource.id})`);
             callback({ video: primarySource });
           } else {
             callback({ video: request.video });
           }
         } catch (err) {
-          console.error("[MexDesk Main] DisplayMedia handler error:", err);
+          console.error("[AegisDesk Main] DisplayMedia handler error:", err);
           callback({});
         }
       });
@@ -162,7 +162,7 @@ ipcMain.handle("get-screen-sources", async () => {
       display_id: s.display_id,
     }));
   } catch (err) {
-    console.error("[MexDesk Main] Failed to fetch screen sources:", err.message);
+    console.error("[AegisDesk Main] Failed to fetch screen sources:", err.message);
     return [];
   }
 });
@@ -170,7 +170,7 @@ ipcMain.handle("get-screen-sources", async () => {
 ipcMain.on("simulate-input", async (event, inputPayload) => {
   // 1. Sender validation
   if (mainWindow && event.sender !== mainWindow.webContents) {
-    console.warn("[MexDesk Main] Rejected input simulation from unauthorized webContents sender");
+    console.warn("[AegisDesk Main] Rejected input simulation from unauthorized webContents sender");
     return;
   }
   // 2. Schema and bounds validation
@@ -195,14 +195,14 @@ ipcMain.on("clipboard-write", (_, text) => {
 ipcMain.handle("save-file", async (_, { defaultName, buffer }) => {
   try {
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: defaultName || "mexdesk-download",
+      defaultPath: defaultName || "aegisdesk-download",
     });
     if (canceled || !filePath) return { success: false };
 
     await fs.writeFile(filePath, Buffer.from(buffer));
     return { success: true, filePath };
   } catch (err) {
-    console.error("[MexDesk Main] Save file error:", err.message);
+    console.error("[AegisDesk Main] Save file error:", err.message);
     return { success: false, error: err.message };
   }
 });

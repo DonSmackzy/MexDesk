@@ -89,9 +89,9 @@ export function RemoteViewer({
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise.catch((e) => {
-          console.warn("[MexDesk Viewer] Autoplay blocked, forcing muted playback:", e);
+          console.warn("[AegisDesk Viewer] Autoplay blocked, forcing muted playback:", e);
           video.muted = true;
-          video.play().catch((err) => console.warn("[MexDesk Viewer] Retry play failed:", err));
+          video.play().catch((err) => console.warn("[AegisDesk Viewer] Retry play failed:", err));
         });
       }
     }
@@ -151,7 +151,7 @@ export function RemoteViewer({
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `MexDesk-Session-${targetPeerId}-${Date.now()}.webm`;
+          a.download = `AegisDesk-Session-${targetPeerId}-${Date.now()}.webm`;
           a.click();
           URL.revokeObjectURL(url);
         };
@@ -232,7 +232,7 @@ export function RemoteViewer({
       {/* Privacy Mode Curtain */}
       {privacyMode && (
         <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center text-white z-20">
-          <EyeOff size={48} className="text-mexdesk-red mb-3" />
+          <EyeOff size={48} className="text-aegis-red mb-3" />
           <h3 className="text-lg font-bold">Privacy Curtain Active</h3>
           <p className="text-xs text-slate-400 mt-1">Remote display is obscured on your viewer screen for privacy.</p>
           <button
@@ -272,7 +272,7 @@ export function RemoteViewer({
             setIsToolbarHidden(false);
             resetHideTimer();
           }}
-          className="absolute top-0 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1 bg-white/95 hover:bg-white backdrop-blur-md border-b border-x border-slate-200/90 rounded-b-xl shadow-md text-slate-700 hover:text-mexdesk-red transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold animate-in slide-in-from-top-2 duration-150"
+          className="absolute top-0 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1 bg-white/95 hover:bg-white backdrop-blur-md border-b border-x border-slate-200/90 rounded-b-xl shadow-md text-slate-700 hover:text-aegis-red transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold animate-in slide-in-from-top-2 duration-150"
           title="Click or hover to reveal toolbar"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -336,7 +336,7 @@ export function RemoteViewer({
             <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 w-44 z-50 text-xs font-medium text-slate-700 space-y-0.5">
               <button
                 onClick={() => sendShortcut("ctrl_alt_del")}
-                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-rose-50 hover:text-mexdesk-red transition"
+                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-rose-50 hover:text-aegis-red transition"
               >
                 Send Ctrl + Alt + Del
               </button>
@@ -365,7 +365,7 @@ export function RemoteViewer({
           onClick={() => setShowWhiteboard(!showWhiteboard)}
           className={`p-1.5 rounded-full transition ${
             showWhiteboard
-              ? "bg-mexdesk-red text-white"
+              ? "bg-aegis-red text-white"
               : "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
           }`}
           title="Whiteboard & Annotation"
@@ -409,7 +409,7 @@ export function RemoteViewer({
         >
           <MessageSquare size={15} />
           {unreadChatCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-mexdesk-red text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-aegis-red text-white text-[10px] font-bold rounded-full flex items-center justify-center">
               {unreadChatCount}
             </span>
           )}
@@ -428,7 +428,7 @@ export function RemoteViewer({
         <button
           onClick={() => setShowStats(!showStats)}
           className={`p-1.5 rounded-full transition ${
-            showStats ? "text-mexdesk-red bg-rose-50" : "text-slate-400 hover:bg-slate-100"
+            showStats ? "text-aegis-red bg-rose-50" : "text-slate-400 hover:bg-slate-100"
           }`}
           title="Toggle Stream Statistics"
         >
@@ -448,7 +448,7 @@ export function RemoteViewer({
             }
           }}
           className={`p-1.5 rounded-full transition ${
-            isToolbarPinned ? "text-mexdesk-red bg-rose-50" : "text-slate-400 hover:bg-slate-100"
+            isToolbarPinned ? "text-aegis-red bg-rose-50" : "text-slate-400 hover:bg-slate-100"
           }`}
           title={isToolbarPinned ? "Toolbar pinned (always visible)" : "Pin toolbar (stop auto-hide)"}
         >
@@ -469,7 +469,7 @@ export function RemoteViewer({
         {/* AnyDesk Iconic Red Disconnect Button */}
         <button
           onClick={onDisconnect}
-          className="flex items-center space-x-1 px-3 py-1 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-full shadow-sm transition cursor-pointer"
+          className="flex items-center space-x-1 px-3 py-1 bg-aegis-red hover:bg-aegis-crimson text-white text-xs font-semibold rounded-full shadow-sm transition cursor-pointer"
         >
           <Square size={12} className="fill-white" />
           <span>Disconnect</span>

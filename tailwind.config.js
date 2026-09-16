@@ -7,9 +7,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        mexdesk: {
-          red: '#E52E2E',         // Iconic AnyDesk primary red
-          crimson: '#D01919',     // Deeper red on hover
+        aegis: {
+          red: '#DC2626',         // Iconic AnyDesk primary red
+          crimson: '#B91C1C',     // Deeper red on hover
           darkred: '#9B1111',     // Dark red active
           lightred: '#FFF1F1',    // Subtle red background
           softred: '#FEE2E2',     // Red badge background

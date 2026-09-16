@@ -1,88 +1,166 @@
-import React from "react";
-import { Minus, Square, X, Wifi, WifiOff, ShieldCheck, Settings as SettingsIcon } from "lucide-react";
+import React from 'react';
+import { Settings, Minus, Square, X, Wifi, WifiOff, Plus, Monitor } from 'lucide-react';
+import AegisLogo from './AegisLogo';
 
-export function TitleBar({ isConnected, myId, onOpenSettings }) {
-  const isElectron = !!window.mexdeskAPI?.isElectron;
-
-  const handleWindow = (action) => {
-    if (isElectron) {
-      window.mexdeskAPI.windowControl(action);
-    }
+const TitleBar = ({
+  onSettings,
+  isOnline,
+  // Multi-session tab props
+  activeTab = 'home',
+  sessions = {},
+  onSwitchTab,
+  onCloseTab,
+}) => {
+  const handleMinimize = () => {
+    if (window.mexdeskAPI?.windowControl) window.mexdeskAPI.windowControl('minimize');
+  };
+  const handleMaximize = () => {
+    if (window.mexdeskAPI?.windowControl) window.mexdeskAPI.windowControl('maximize');
+  };
+  const handleClose = () => {
+    if (window.mexdeskAPI?.windowControl) window.mexdeskAPI.windowControl('close');
   };
 
+  const formatId = (id) => {
+    if (!id) return '???-???-???';
+    const s = id.toString().replace(/-/g, '').padStart(9, '0');
+    return `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6, 9)}`;
+  };
+
+  const sessionEntries = Object.entries(sessions);
+
   return (
-    <header className="h-10 bg-white border-b border-slate-200 flex items-center justify-between px-3 electron-drag-region select-none z-50">
-      {/* Brand & Connection State */}
-      <div className="flex items-center space-x-3">
-        <div className="flex items-center space-x-2">
-          <div className="w-6 h-6 rounded-md bg-mexdesk-red flex items-center justify-center text-white font-bold text-xs shadow-sm">
-            M
-          </div>
-          <span className="font-semibold text-slate-800 text-sm tracking-tight">
-            Mex<span className="text-mexdesk-red">Desk</span>
-          </span>
-        </div>
+    <div
+      className="bg-white border-b border-aegis-border flex items-center h-10 select-none"
+      style={{ WebkitAppRegion: 'drag' }}
+    >
+      {/* Left: Brand + Status */}
+      <div className="flex items-center gap-2 px-3 shrink-0" style={{ WebkitAppRegion: 'no-drag' }}>
+        <AegisLogo size={22} />
+        <span className="text-sm font-semibold text-aegis-darker hidden sm:inline">AegisDesk</span>
 
-        <div className="h-4 w-px bg-slate-200 mx-1"></div>
-
-        {/* Network status pill: Online or Offline */}
-        <div className="flex items-center space-x-1.5 text-xs">
-          {isConnected ? (
-            <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-[11px] border border-emerald-200 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        {/* Online/Offline Status Pill */}
+        <div
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+            isOnline ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+          }`}
+        >
+          {isOnline ? (
+            <>
+              <Wifi size={10} />
               <span>Online</span>
-            </span>
+            </>
           ) : (
-            <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 font-semibold text-[11px] border border-rose-200 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+            <>
+              <WifiOff size={10} />
               <span>Offline</span>
-            </span>
-          )}
-
-          {myId && (
-            <span className="text-slate-400 text-[11px] font-mono">
-              ID: {myId}
-            </span>
+            </>
           )}
         </div>
       </div>
 
-      {/* Right controls */}
-      <div className="flex items-center space-x-1 electron-no-drag">
+      {/* Center: Session Tabs */}
+      <div
+        className="flex items-center gap-0.5 flex-1 min-w-0 h-full overflow-x-auto scrollbar-hide px-1"
+        style={{ WebkitAppRegion: 'no-drag' }}
+      >
+        {/* Home / New Session Tab */}
         <button
-          onClick={onOpenSettings}
-          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition"
-          title="Settings"
+          onClick={() => onSwitchTab?.('home')}
+          className={`flex items-center gap-1.5 px-3 h-8 rounded-t-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+            activeTab === 'home'
+              ? 'bg-white text-aegis-darker shadow-sm border-t-2 border-t-[#DC2626] border-x border-x-aegis-border'
+              : 'text-gray-500 hover:bg-aegis-lightgray hover:text-aegis-darker'
+          }`}
         >
-          <SettingsIcon size={15} />
+          <Plus size={12} />
+          <span>New Session</span>
         </button>
 
-        {isElectron && (
-          <div className="flex items-center ml-2 space-x-0.5">
-            <button
-              onClick={() => handleWindow("minimize")}
-              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition rounded"
-              title="Minimize"
+        {/* Active Session Tabs */}
+        {sessionEntries.map(([peerId, session]) => {
+          const isActive = activeTab === peerId;
+          const label = session.alias || formatId(peerId);
+          const isConnected = session.connectionState === 'connected';
+
+          return (
+            <div
+              key={peerId}
+              className={`group flex items-center gap-1.5 px-3 h-8 rounded-t-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 cursor-pointer ${
+                isActive
+                  ? 'bg-white text-aegis-darker shadow-sm border-t-2 border-t-[#DC2626] border-x border-x-aegis-border'
+                  : 'text-gray-500 hover:bg-aegis-lightgray hover:text-aegis-darker'
+              }`}
+              onClick={() => onSwitchTab?.(peerId)}
             >
-              <Minus size={14} />
-            </button>
-            <button
-              onClick={() => handleWindow("maximize")}
-              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition rounded"
-              title="Maximize"
-            >
-              <Square size={12} />
-            </button>
-            <button
-              onClick={() => handleWindow("close")}
-              className="p-1.5 hover:bg-mexdesk-red hover:text-white text-slate-500 transition rounded"
-              title="Close"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        )}
+              {/* Connection indicator */}
+              <div
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  isConnected ? 'bg-green-500' : session.isCalling ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'
+                }`}
+              />
+              {/* Session label */}
+              <Monitor size={12} className="shrink-0 opacity-60" />
+              <span className="max-w-[140px] truncate">{label}</span>
+              {/* Unread indicator */}
+              {session.unreadChatCount > 0 && (
+                <span className="bg-[#DC2626] text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none min-w-[16px] text-center">
+                  {session.unreadChatCount > 9 ? '9+' : session.unreadChatCount}
+                </span>
+              )}
+              {/* Close button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseTab?.(peerId);
+                }}
+                className="ml-0.5 p-0.5 rounded hover:bg-[#FEE2E2] hover:text-[#DC2626] opacity-0 group-hover:opacity-100 transition-all"
+                title="Close session"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          );
+        })}
       </div>
-    </header>
+
+      {/* Right: Settings + Window Controls */}
+      <div className="flex items-center gap-1 px-3 shrink-0" style={{ WebkitAppRegion: 'no-drag' }}>
+        <button
+          onClick={onSettings}
+          className="p-1.5 hover:bg-aegis-lightgray rounded-md transition-colors"
+          title="Settings"
+        >
+          <Settings size={14} className="text-aegis-darker" />
+        </button>
+
+        <div className="w-px h-4 bg-aegis-border mx-1" />
+
+        <button
+          onClick={handleMinimize}
+          className="p-1.5 hover:bg-aegis-lightgray rounded-md transition-colors"
+          title="Minimize"
+        >
+          <Minus size={14} className="text-aegis-darker" />
+        </button>
+        <button
+          onClick={handleMaximize}
+          className="p-1.5 hover:bg-aegis-lightgray rounded-md transition-colors"
+          title="Maximize"
+        >
+          <Square size={12} className="text-aegis-darker" />
+        </button>
+        <button
+          onClick={handleClose}
+          className="p-1.5 hover:bg-red-100 hover:text-red-600 rounded-md transition-colors"
+          title="Close"
+        >
+          <X size={14} className="text-aegis-darker" />
+        </button>
+      </div>
+    </div>
   );
-}
+};
+
+export { TitleBar };
+export default TitleBar;

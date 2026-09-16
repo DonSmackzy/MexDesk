@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Wifi,
 } from "lucide-react";
+import AegisLogo from "./AegisLogo";
 
 export function HomeScreen({
   myId,
@@ -92,20 +93,23 @@ export function HomeScreen({
     <div className="flex-1 overflow-y-auto p-6 max-w-6xl w-full mx-auto space-y-6">
       {/* Top Banner / Welcome */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-            Welcome to <span className="text-mexdesk-red">MexDesk</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Fast, secure, end-to-end encrypted remote desktop access
-          </p>
+        <div className="flex items-center gap-3">
+          <AegisLogo size={36} />
+          <div>
+            <h1 className="text-2xl font-bold text-[#0F172A] tracking-tight flex items-center gap-2">
+              Welcome to <span className="text-[#DC2626]">AegisDesk</span>
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Enterprise-grade, secure, ultra-low latency remote desktop access
+            </p>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <button
             onClick={onConfigurePassword}
-            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm"
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-[#0F172A] bg-white border border-slate-200 rounded-lg hover:bg-[#FEE2E2] hover:text-[#DC2626] transition shadow-sm"
           >
-            <Lock size={14} className={unattendedPassword ? "text-mexdesk-red" : "text-slate-400"} />
+            <Lock size={14} className={unattendedPassword ? "text-[#DC2626]" : "text-slate-400"} />
             <span>
               Unattended Access:{" "}
               <strong className={unattendedPassword ? "text-emerald-600" : "text-slate-400"}>
@@ -130,7 +134,7 @@ export function HomeScreen({
               Standard web browsers operate inside an OS security sandbox: Chrome/Edge requires picking a screen to share and restricts websites from simulating native Windows mouse clicks.
             </p>
             <p className="text-amber-800 font-medium">
-              💡 For 1-click seamless screen sharing and full native mouse & keyboard remote control, run the <strong>MexDesk Desktop App</strong> on the host PC (<code className="bg-amber-100/80 px-1 py-0.5 rounded font-mono text-[11px]">npm run electron:start</code>).
+              💡 For 1-click seamless screen sharing and full native mouse & keyboard remote control, run the <strong>AegisDesk Desktop App</strong> on the host PC (<code className="bg-amber-100/80 px-1 py-0.5 rounded font-mono text-[11px]">npm run electron:start</code>).
             </p>
           </div>
         </div>
@@ -139,18 +143,15 @@ export function HomeScreen({
       {/* Main Connection Grid (This Desk vs Remote Desk) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* THIS DESK CARD */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-card relative overflow-hidden flex flex-col justify-between">
-          {/* Top red decorative accent banner */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-mexdesk-red via-rose-500 to-mexdesk-crimson"></div>
-
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 border-t-4 border-t-[#DC2626] shadow-card relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-lg bg-mexdesk-lightred flex items-center justify-center text-mexdesk-red">
+                <div className="w-8 h-8 rounded-lg bg-[#FFF1F1] flex items-center justify-center text-[#DC2626]">
                   <Monitor size={18} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-800">This Desk</h2>
+                  <h2 className="text-sm font-semibold text-[#0F172A]">This Desk</h2>
                   <p className="text-[11px] text-slate-400">Share your ID to allow remote access</p>
                 </div>
               </div>
@@ -160,12 +161,12 @@ export function HomeScreen({
             </div>
 
             {/* Big 9-Digit ID & Custom Alias Display - Iconic Solid Red Card */}
-            <div className="bg-gradient-to-br from-[#E52E2E] via-[#D31B1B] to-[#B71515] rounded-2xl p-5 shadow-lg shadow-red-600/25 mb-4 text-center text-white border border-red-500/40 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#DC2626] via-[#B91C1C] to-[#991B1B] rounded-2xl p-5 shadow-lg shadow-red-600/20 mb-4 text-center text-white border border-red-500/40 relative overflow-hidden">
               {/* Subtle background glow effect */}
               <div className="absolute -right-8 -bottom-8 w-28 h-28 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
 
               <span className="text-[11px] uppercase tracking-wider font-semibold text-red-100 block mb-1">
-                Your MexDesk Address
+                Your AegisDesk Address
               </span>
               <div className="text-3xl sm:text-4xl font-mono font-bold tracking-wider text-white flex items-center justify-center space-x-2 drop-shadow-sm my-1">
                 {myId ? (
@@ -190,7 +191,7 @@ export function HomeScreen({
                     />
                     <button
                       type="submit"
-                      className="p-1 rounded-lg bg-white text-mexdesk-red hover:bg-red-50 font-bold transition text-xs shadow-sm"
+                      className="p-1 rounded-lg bg-white text-aegis-red hover:bg-red-50 font-bold transition text-xs shadow-sm"
                       title="Save alias"
                     >
                       <Check size={14} />
@@ -245,7 +246,7 @@ export function HomeScreen({
               <button
                 onClick={handleCopyInviteLink}
                 disabled={!myId}
-                className="flex items-center space-x-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-mexdesk-red text-xs font-semibold rounded-lg border border-rose-200 transition disabled:opacity-50"
+                className="flex items-center space-x-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-aegis-red text-xs font-semibold rounded-lg border border-rose-200 transition disabled:opacity-50"
                 title="Copy direct invite link for friends"
               >
                 {copiedLink ? (
@@ -282,9 +283,7 @@ export function HomeScreen({
         </div>
 
         {/* REMOTE DESK CARD */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-card relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-800"></div>
-
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 border-t-4 border-t-[#DC2626] shadow-card relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
@@ -292,11 +291,11 @@ export function HomeScreen({
                   <ArrowRight size={18} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-800">Remote Desk</h2>
+                  <h2 className="text-sm font-semibold text-[#0F172A]">Remote Desk</h2>
                   <p className="text-[11px] text-slate-400">Enter 9-digit address or custom alias to connect</p>
                 </div>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-mexdesk-softred text-mexdesk-crimson text-[11px] font-medium">
+              <span className="px-2 py-0.5 rounded-full bg-[#FEE2E2] text-[#DC2626] text-[11px] font-semibold">
                 Client
               </span>
             </div>
@@ -313,7 +312,7 @@ export function HomeScreen({
                     value={remoteIdInput}
                     onChange={(e) => setRemoteIdInput(e.target.value)}
                     placeholder="e.g. 482-901-325 or boss-mezie@mex"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-mono font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-mexdesk-red focus:border-transparent transition"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-lg font-mono font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:border-transparent transition"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleStartConnect("full-control");
                     }}
@@ -334,7 +333,7 @@ export function HomeScreen({
                 <button
                   onClick={() => handleStartConnect("full-control")}
                   disabled={!remoteIdInput.trim()}
-                  className="flex items-center justify-center space-x-2 px-4 py-3 bg-mexdesk-red hover:bg-mexdesk-crimson active:bg-mexdesk-darkred text-white text-sm font-semibold rounded-xl shadow-md shadow-red-500/20 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#DC2626] hover:bg-[#B91C1C] active:bg-[#991B1B] text-white text-sm font-semibold rounded-xl shadow-md shadow-red-600/20 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <span>Connect</span>
                   <ArrowRight size={16} />
@@ -354,7 +353,7 @@ export function HomeScreen({
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
             <span>Direct P2P with STUN fallback</span>
-            <span className="text-mexdesk-red font-medium">AnyDesk Protocol Compatible</span>
+            <span className="text-aegis-red font-medium">AnyDesk Protocol Compatible</span>
           </div>
         </div>
       </div>
@@ -368,7 +367,7 @@ export function HomeScreen({
               onClick={() => setActiveSessionsTab("recent")}
               className={`flex items-center space-x-2 pb-1 font-semibold text-xs transition border-b-2 cursor-pointer ${
                 activeSessionsTab === "recent"
-                  ? "border-mexdesk-red text-slate-800"
+                  ? "border-aegis-red text-slate-800"
                   : "border-transparent text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -384,7 +383,7 @@ export function HomeScreen({
               onClick={() => setActiveSessionsTab("discovered")}
               className={`flex items-center space-x-2 pb-1 font-semibold text-xs transition border-b-2 cursor-pointer ${
                 activeSessionsTab === "discovered"
-                  ? "border-mexdesk-red text-slate-800"
+                  ? "border-aegis-red text-slate-800"
                   : "border-transparent text-slate-400 hover:text-slate-600"
               }`}
             >
@@ -405,8 +404,8 @@ export function HomeScreen({
           {activeSessionsTab === "discovered" && onRefreshLanPeers && (
             <button
               onClick={onRefreshLanPeers}
-              className="flex items-center space-x-1 text-xs text-slate-500 hover:text-mexdesk-red transition cursor-pointer"
-              title="Rescan local network for MexDesk clients"
+              className="flex items-center space-x-1 text-xs text-slate-500 hover:text-aegis-red transition cursor-pointer"
+              title="Rescan local network for AegisDesk clients"
             >
               <RefreshCw size={13} />
               <span>Rescan Network</span>
@@ -421,9 +420,9 @@ export function HomeScreen({
               <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
                 <Wifi size={24} />
               </div>
-              <h3 className="text-xs font-semibold text-slate-700">No other MexDesk devices found on this network</h3>
+              <h3 className="text-xs font-semibold text-slate-700">No other AegisDesk devices found on this network</h3>
               <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
-                Open MexDesk on another computer connected to your local network or WiFi. It will automatically be detected and listed here for instant connection.
+                Open AegisDesk on another computer connected to your local network or WiFi. It will automatically be detected and listed here for instant connection.
               </p>
               {onRefreshLanPeers && (
                 <button
@@ -451,7 +450,7 @@ export function HomeScreen({
                     <div className="overflow-hidden flex-1 min-w-0">
                       <div className="flex items-center space-x-1.5">
                         <h3 className="text-xs font-bold text-slate-800 truncate">
-                          {peer.alias || "MexDesk Client"}
+                          {peer.alias || "AegisDesk Client"}
                         </h3>
                         <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.2 rounded">
                           LAN
@@ -467,7 +466,7 @@ export function HomeScreen({
                   <div className="flex items-center space-x-1 shrink-0">
                     <button
                       onClick={() => handleStartConnect("full-control", peer.id)}
-                      className="px-3 py-1.5 rounded-lg bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold transition shadow-sm flex items-center space-x-1 cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-aegis-red hover:bg-aegis-crimson text-white text-xs font-semibold transition shadow-sm flex items-center space-x-1 cursor-pointer"
                       title="Connect to this LAN desk"
                     >
                       <span>Connect</span>
@@ -501,7 +500,7 @@ export function HomeScreen({
                     className="group p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-slate-300 hover:shadow-sm transition flex items-center justify-between"
                   >
                     <div className="flex items-center space-x-3 overflow-hidden flex-1 min-w-0 mr-2">
-                      <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-mexdesk-red shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-aegis-red shrink-0">
                         <Monitor size={20} />
                       </div>
 
@@ -523,7 +522,7 @@ export function HomeScreen({
                               value={editingRecentAliasInput}
                               onChange={(e) => setEditingRecentAliasInput(e.target.value)}
                               placeholder="Remote Desk Alias"
-                              className="w-full px-2 py-0.5 text-xs bg-white border border-mexdesk-red rounded font-medium text-slate-800 focus:outline-none"
+                              className="w-full px-2 py-0.5 text-xs bg-white border border-aegis-red rounded font-medium text-slate-800 focus:outline-none"
                             />
                             <button
                               type="submit"
@@ -552,7 +551,7 @@ export function HomeScreen({
                                   setEditingRecentId(session.id);
                                   setEditingRecentAliasInput(session.alias || `Desk ${session.id}`);
                                 }}
-                                className="opacity-0 group-hover/alias:opacity-100 p-0.5 text-slate-400 hover:text-mexdesk-red transition cursor-pointer"
+                                className="opacity-0 group-hover/alias:opacity-100 p-0.5 text-slate-400 hover:text-aegis-red transition cursor-pointer"
                                 title="Rename remote client alias"
                               >
                                 <Pencil size={11} />
@@ -570,7 +569,7 @@ export function HomeScreen({
                     <div className="flex items-center space-x-1 shrink-0 opacity-80 group-hover:opacity-100">
                       <button
                         onClick={() => handleStartConnect("full-control", session.id)}
-                        className="p-2 rounded-lg bg-mexdesk-red hover:bg-mexdesk-crimson text-white transition shadow-sm cursor-pointer"
+                        className="p-2 rounded-lg bg-aegis-red hover:bg-aegis-crimson text-white transition shadow-sm cursor-pointer"
                         title="Connect"
                       >
                         <ArrowRight size={14} />
@@ -594,7 +593,7 @@ export function HomeScreen({
       {/* ANYDESK COMPETITIVE ADVANTAGE FEATURE SHOWCASE */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm flex items-start space-x-3">
-          <div className="p-2 rounded-lg bg-red-50 text-mexdesk-red shrink-0">
+          <div className="p-2 rounded-lg bg-red-50 text-aegis-red shrink-0">
             <Video size={18} />
           </div>
           <div>
@@ -606,7 +605,7 @@ export function HomeScreen({
         </div>
 
         <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm flex items-start space-x-3">
-          <div className="p-2 rounded-lg bg-red-50 text-mexdesk-red shrink-0">
+          <div className="p-2 rounded-lg bg-red-50 text-aegis-red shrink-0">
             <PenTool size={18} />
           </div>
           <div>
@@ -618,7 +617,7 @@ export function HomeScreen({
         </div>
 
         <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm flex items-start space-x-3">
-          <div className="p-2 rounded-lg bg-red-50 text-mexdesk-red shrink-0">
+          <div className="p-2 rounded-lg bg-red-50 text-aegis-red shrink-0">
             <FolderSync size={18} />
           </div>
           <div>

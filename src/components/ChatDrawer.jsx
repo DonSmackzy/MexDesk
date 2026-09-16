@@ -84,7 +84,7 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
       {/* Header */}
       <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-white">
         <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 rounded-lg bg-mexdesk-lightred flex items-center justify-center text-mexdesk-red">
+          <div className="w-7 h-7 rounded-lg bg-aegis-lightred flex items-center justify-center text-aegis-red">
             <MessageSquare size={15} />
           </div>
           <div>
@@ -123,7 +123,7 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
                 <div
                   className={`p-3 rounded-2xl text-xs ${
                     m.sender === "me"
-                      ? "bg-mexdesk-red text-white rounded-br-none shadow-sm"
+                      ? "bg-aegis-red text-white rounded-br-none shadow-sm"
                       : "bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200"
                   }`}
                 >
@@ -173,12 +173,12 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           placeholder="Type message..."
-          className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-mexdesk-red focus:border-transparent transition"
+          className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-aegis-red focus:border-transparent transition"
         />
         <button
           type="submit"
           disabled={!inputMessage.trim()}
-          className="p-2 rounded-xl bg-mexdesk-red hover:bg-mexdesk-crimson text-white transition disabled:opacity-40 shadow-sm"
+          className="p-2 rounded-xl bg-aegis-red hover:bg-aegis-crimson text-white transition disabled:opacity-40 shadow-sm"
         >
           <Send size={15} />
         </button>

@@ -13,7 +13,7 @@ import {
 export function WhiteboardOverlay({ webrtc, onClose }) {
   const canvasRef = useRef(null);
   const [tool, setTool] = useState("pen"); // pen, highlighter, rectangle, arrow, eraser
-  const [color, setColor] = useState("#E52E2E"); // Default iconic AnyDesk red!
+  const [color, setColor] = useState("#DC2626"); // Default iconic AegisDesk red!
   const [lineWidth, setLineWidth] = useState(3);
   const [isDrawing, setIsDrawing] = useState(false);
   const [history, setHistory] = useState([]);
@@ -21,7 +21,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
   const currentStrokeRef = useRef([]);
 
   const colors = [
-    { name: "MexDesk Red", value: "#E52E2E" },
+    { name: "AegisDesk Red", value: "#DC2626" },
     { name: "Blue", value: "#2563EB" },
     { name: "Emerald", value: "#10B981" },
     { name: "Amber", value: "#F59E0B" },
@@ -230,7 +230,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("pen")}
             className={`p-2 rounded-xl transition ${
-              tool === "pen" ? "bg-mexdesk-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "pen" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
             }`}
             title="Pen"
           >
@@ -239,7 +239,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("highlighter")}
             className={`p-2 rounded-xl transition ${
-              tool === "highlighter" ? "bg-mexdesk-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "highlighter" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
             }`}
             title="Highlighter"
           >
@@ -248,7 +248,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("arrow")}
             className={`p-2 rounded-xl transition ${
-              tool === "arrow" ? "bg-mexdesk-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "arrow" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
             }`}
             title="Arrow"
           >
@@ -257,7 +257,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("rectangle")}
             className={`p-2 rounded-xl transition ${
-              tool === "rectangle" ? "bg-mexdesk-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "rectangle" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
             }`}
             title="Rectangle"
           >
@@ -266,7 +266,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("eraser")}
             className={`p-2 rounded-xl transition ${
-              tool === "eraser" ? "bg-mexdesk-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "eraser" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
             }`}
             title="Eraser"
           >
@@ -281,7 +281,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
               key={c.value}
               onClick={() => setColor(c.value)}
               className={`w-5 h-5 rounded-full border transition transform ${
-                color === c.value ? "scale-125 ring-2 ring-mexdesk-red ring-offset-1" : "hover:scale-110"
+                color === c.value ? "scale-125 ring-2 ring-aegis-red ring-offset-1" : "hover:scale-110"
               }`}
               style={{ backgroundColor: c.value, borderColor: c.value === "#FFFFFF" ? "#CBD5E1" : "transparent" }}
               title={c.name}
@@ -301,7 +301,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           </button>
           <button
             onClick={handleClear}
-            className="p-2 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-mexdesk-red transition"
+            className="p-2 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-aegis-red transition"
             title="Clear All"
           >
             <Trash2 size={16} />

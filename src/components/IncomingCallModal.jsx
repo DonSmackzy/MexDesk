@@ -52,11 +52,11 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Top Header Banner - AnyDesk Style Connection Authorization Header */}
-        <div className="bg-gradient-to-r from-mexdesk-red to-mexdesk-crimson p-5 text-white flex items-center justify-between">
+        <div className="bg-gradient-to-r from-aegis-red to-aegis-crimson p-5 text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center relative">
               <Monitor size={22} className="text-white" />
-              <ShieldCheck size={12} className="text-emerald-300 absolute -bottom-1 -right-1 bg-mexdesk-crimson rounded-full" />
+              <ShieldCheck size={12} className="text-emerald-300 absolute -bottom-1 -right-1 bg-aegis-crimson rounded-full" />
             </div>
             <div>
               <span className="text-xs uppercase tracking-wider font-semibold opacity-80">
@@ -93,7 +93,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                     : "bg-slate-50 border-slate-200 text-slate-400"
                 }`}
               >
-                <MousePointer size={15} className={permissions.control ? "text-mexdesk-red" : "text-slate-400"} />
+                <MousePointer size={15} className={permissions.control ? "text-aegis-red" : "text-slate-400"} />
                 <span className="font-medium">Control Input</span>
               </label>
 
@@ -105,7 +105,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                     : "bg-slate-50 border-slate-200 text-slate-400"
                 }`}
               >
-                <FolderSync size={15} className={permissions.fileTransfer ? "text-mexdesk-red" : "text-slate-400"} />
+                <FolderSync size={15} className={permissions.fileTransfer ? "text-aegis-red" : "text-slate-400"} />
                 <span className="font-medium">File Transfer</span>
               </label>
 
@@ -117,7 +117,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                     : "bg-slate-50 border-slate-200 text-slate-400"
                 }`}
               >
-                <Clipboard size={15} className={permissions.clipboard ? "text-mexdesk-red" : "text-slate-400"} />
+                <Clipboard size={15} className={permissions.clipboard ? "text-aegis-red" : "text-slate-400"} />
                 <span className="font-medium">Sync Clipboard</span>
               </label>
 
@@ -129,7 +129,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                     : "bg-slate-50 border-slate-200 text-slate-400"
                 }`}
               >
-                <Volume2 size={15} className={permissions.audio ? "text-mexdesk-red" : "text-slate-400"} />
+                <Volume2 size={15} className={permissions.audio ? "text-aegis-red" : "text-slate-400"} />
                 <span className="font-medium">Transmit Audio</span>
               </label>
             </div>
@@ -152,7 +152,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
 
             <button
               onClick={() => onReject("Rejected by user")}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-mexdesk-red hover:bg-mexdesk-crimson active:bg-mexdesk-darkred text-white font-semibold text-sm rounded-xl shadow-md shadow-red-500/20 transition cursor-pointer"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-aegis-red hover:bg-aegis-crimson active:bg-aegis-darkred text-white font-semibold text-sm rounded-xl shadow-md shadow-red-500/20 transition cursor-pointer"
             >
               <X size={18} />
               <span>Dismiss</span>

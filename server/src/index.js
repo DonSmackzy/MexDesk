@@ -129,7 +129,7 @@ const server = http.createServer((req, res) => {
       "Content-Type": "application/json",
       "X-Content-Type-Options": "nosniff"
     });
-    return res.end(JSON.stringify({ status: "ok", app: "MexDesk Server", peers: peers.size }));
+    return res.end(JSON.stringify({ status: "ok", app: "AegisDesk Server", peers: peers.size }));
   }
 
   if (fs.existsSync(DIST_DIR)) {
@@ -200,7 +200,7 @@ const server = http.createServer((req, res) => {
   }
 
   res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("MexDesk Signaling Server is running on port " + PORT);
+  res.end("AegisDesk Signaling Server is running on port " + PORT);
 });
 
 // Configure WebSocket Server with 1MB maximum payload limit
@@ -871,7 +871,7 @@ wss.on("close", () => {
 
 server.listen(PORT, () => {
   console.log("==================================================");
-  console.log("             MEXDESK SIGNALING SERVER             ");
+  console.log("             AEGISDESK SIGNALING SERVER             ");
   console.log(`  Port: ${PORT} | Status: Ready for WebRTC relay `);
   console.log("==================================================");
 });

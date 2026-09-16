@@ -1,7 +1,7 @@
 {
-  "name": "mexdesk",
+  "name": "aegisdesk",
   "version": "1.0.0",
-  "description": "MexDesk - High Performance Remote Desktop Software",
+  "description": "AegisDesk - Enterprise Remote Desktop",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -14,8 +14,8 @@
     "dist": "npm run build && electron-builder --win portable"
   },
   "build": {
-    "appId": "com.mexdesk.app",
-    "productName": "MexDesk",
+    "appId": "com.aegisdesk.app",
+    "productName": "AegisDesk",
     "directories": {
       "output": "release"
     },
@@ -31,7 +31,7 @@
       "target": "portable"
     },
     "portable": {
-      "artifactName": "MexDesk.exe"
+      "artifactName": "AegisDesk.exe"
     }
   },
   "dependencies": {

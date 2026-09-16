@@ -1,4 +1,4 @@
-// SignalingClient.js - WebSocket client for MexDesk signaling and peer discovery
+// SignalingClient.js - WebSocket client for AegisDesk signaling and peer discovery
 
 export class SignalingClient {
   constructor(url = "ws://localhost:7777") {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { TitleBar } from "./components/TitleBar";
 import { HomeScreen } from "./components/HomeScreen";
 import { RemoteViewer } from "./components/RemoteViewer";
@@ -6,7 +6,7 @@ import { IncomingCallModal } from "./components/IncomingCallModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { SignalingClient } from "./services/SignalingClient";
 import { WebRTCConnection } from "./services/WebRTCConnection";
-import { Lock, ArrowRight, X, AlertCircle } from "lucide-react";
+import { Lock, ArrowRight, X, AlertCircle, Download, RefreshCw } from "lucide-react";
 
 function getOrCreateStaticDeviceId() {
   let id = localStorage.getItem("mexdesk_device_static_id") || localStorage.getItem("mexdesk_my_id");
@@ -36,43 +36,26 @@ export function App() {
 
   const getInitialSignalingUrl = () => {
     if (queryServer) return queryServer;
-
     const saved = localStorage.getItem("mexdesk_signaling_url");
     const isDev = window.location.protocol === "http:" && window.location.hostname === "localhost";
-
-    if (isDev) {
-      return saved || "ws://localhost:7777";
-    }
-
-    if (saved && !saved.includes("localhost") && !saved.includes("127.0.0.1")) {
-      return saved;
-    }
-
-    if (window.location.protocol === "https:") {
-      return `wss://${window.location.host}`;
-    }
-
+    if (isDev) return saved || "ws://localhost:7777";
+    if (saved && !saved.includes("localhost") && !saved.includes("127.0.0.1")) return saved;
+    if (window.location.protocol === "https:") return `wss://${window.location.host}`;
     return CLOUD_SIGNALING;
   };
 
   const [signalingUrl, setSignalingUrl] = useState(getInitialSignalingUrl);
   const [initialConnectTo] = useState(queryConnect);
 
-  // Active Session State
-  const [sessionState, setSessionState] = useState("home"); // "home", "calling", "hosting", "controlling"
-  const [remoteId, setRemoteId] = useState("");
-  const [remoteAlias, setRemoteAlias] = useState("");
-  const [remoteStream, setRemoteStream] = useState(null);
-  const [sessionPermissions, setSessionPermissions] = useState({
-    control: true,
-    fileTransfer: true,
-    clipboard: true,
-    audio: true,
-  });
+  // ─── Multi-Session State ────────────────────────────────
+  // sessions: { [peerId]: { id, alias, webrtc, stream, permissions, unreadChatCount, isCalling, connectionState, localStream, role } }
+  const [sessions, setSessions] = useState({});
+  const [activeTab, setActiveTab] = useState("home"); // "home" | peerId
 
   // Call modals
   const [incomingCall, setIncomingCall] = useState(null);
   const [isCallingModal, setIsCallingModal] = useState(false);
+  const [callingTarget, setCallingTarget] = useState({ id: "", alias: "" });
   const [passwordChallenge, setPasswordChallenge] = useState(null);
   const [challengePasswordInput, setChallengePasswordInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -86,23 +69,72 @@ export function App() {
     }
   });
 
-  // Local Network Discovery Peers & Preferences
+  // LAN Discovery
   const [lanPeers, setLanPeers] = useState([]);
   const [optOutDiscovery, setOptOutDiscovery] = useState(
     () => localStorage.getItem("mexdesk_opt_out_discovery") === "true"
   );
 
-  // Settings Modal
+  // Settings & Update
   const [showSettings, setShowSettings] = useState(false);
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [updateAvailable, setUpdateAvailable] = useState(null); // { version: string } | null
+  const [updatePref, setUpdatePref] = useState(
+    () => localStorage.getItem("aegisdesk_update_pref") || "prompt" // "auto" | "prompt"
+  );
 
   // References
   const signalingRef = useRef(null);
-  const webrtcRef = useRef(null);
-  const localStreamRef = useRef(null);
   const startHostSessionRef = useRef(null);
 
-  // Initialize Signaling Client
+  // ─── Session Helpers ────────────────────────────────────
+  const updateSession = useCallback((peerId, patch) => {
+    setSessions((prev) => {
+      if (!prev[peerId]) return prev;
+      return { ...prev, [peerId]: { ...prev[peerId], ...patch } };
+    });
+  }, []);
+
+  const removeSession = useCallback((peerId) => {
+    setSessions((prev) => {
+      const next = { ...prev };
+      // Cleanup WebRTC
+      if (next[peerId]?.webrtc) {
+        next[peerId].webrtc.close();
+      }
+      // Cleanup local stream
+      if (next[peerId]?.localStream) {
+        next[peerId].localStream.getTracks().forEach((t) => t.stop());
+      }
+      delete next[peerId];
+      return next;
+    });
+    // If we were viewing this tab, switch to home or next session
+    setActiveTab((prev) => {
+      if (prev !== peerId) return prev;
+      const remaining = Object.keys(sessions).filter((id) => id !== peerId);
+      return remaining.length > 0 ? remaining[remaining.length - 1] : "home";
+    });
+  }, [sessions]);
+
+  const createSession = useCallback((peerId, data = {}) => {
+    setSessions((prev) => ({
+      ...prev,
+      [peerId]: {
+        id: peerId,
+        alias: data.alias || "",
+        webrtc: data.webrtc || null,
+        stream: data.stream || null,
+        permissions: data.permissions || { control: true, fileTransfer: true, clipboard: true, audio: true },
+        unreadChatCount: 0,
+        isCalling: data.isCalling || false,
+        connectionState: data.connectionState || "connecting",
+        localStream: data.localStream || null,
+        role: data.role || "controller", // "controller" | "host"
+      },
+    }));
+  }, []);
+
+  // ─── Initialize Signaling Client ────────────────────────
   useEffect(() => {
     const client = new SignalingClient(signalingUrl);
     signalingRef.current = client;
@@ -128,9 +160,7 @@ export function App() {
     });
 
     client.on("lan-peers", (data) => {
-      if (data.peers && Array.isArray(data.peers)) {
-        setLanPeers(data.peers);
-      }
+      if (data.peers && Array.isArray(data.peers)) setLanPeers(data.peers);
     });
 
     client.on("lan-peer-joined", (data) => {
@@ -169,9 +199,6 @@ export function App() {
     // Incoming Call Handler
     client.on("incoming-call", (data) => {
       setIncomingCall(data);
-      if (data.callerAlias) {
-        setRemoteAlias(data.callerAlias);
-      }
     });
 
     // Ringing State
@@ -179,31 +206,45 @@ export function App() {
       setIsCallingModal(true);
     });
 
-    // Call Accepted (Caller Side)
+    // Call Accepted (Caller Side) — Create session with WebRTC
     client.on("call-accepted", async (data) => {
       setIsCallingModal(false);
       setPasswordChallenge(null);
-      setSessionPermissions(data.permissions || {});
 
-      const activeAlias = data.targetAlias || remoteAlias || "";
-      if (activeAlias) {
-        setRemoteAlias(activeAlias);
-      }
+      const targetId = data.targetId;
+      const activeAlias = data.targetAlias || callingTarget.alias || "";
 
-      // Add to recent sessions with alias
-      addRecentSession(data.targetId, activeAlias);
+      addRecentSession(targetId, activeAlias);
 
       // Initialize WebRTC as Caller / Controller
-      const rtc = new WebRTCConnection(client, data.targetId, true);
-      webrtcRef.current = rtc;
+      const rtc = new WebRTCConnection(client, targetId, true);
+
+      createSession(targetId, {
+        alias: activeAlias,
+        webrtc: rtc,
+        permissions: data.permissions || {},
+        isCalling: false,
+        connectionState: "connecting",
+        role: "controller",
+      });
+
+      setActiveTab(targetId);
 
       rtc.on("remote-stream", (stream) => {
-        setRemoteStream(stream);
-        setSessionState("controlling");
+        updateSession(targetId, { stream, connectionState: "connected" });
       });
 
       rtc.on("chat-message", () => {
-        setUnreadChatCount((prev) => prev + 1);
+        setSessions((prev) => {
+          if (!prev[targetId]) return prev;
+          return {
+            ...prev,
+            [targetId]: {
+              ...prev[targetId],
+              unreadChatCount: prev[targetId].unreadChatCount + 1,
+            },
+          };
+        });
       });
 
       let callerDisconnectTimer = null;
@@ -213,10 +254,11 @@ export function App() {
             clearTimeout(callerDisconnectTimer);
             callerDisconnectTimer = null;
           }
+          updateSession(targetId, { connectionState: "connected" });
         } else if (state === "failed" || state === "closed") {
           if (!callerDisconnectTimer) {
             callerDisconnectTimer = setTimeout(() => {
-              handleEndSession("Connection disconnected (ICE failure)");
+              handleCloseSession(targetId, "Connection disconnected (ICE failure)");
             }, 12000);
           }
         }
@@ -252,50 +294,68 @@ export function App() {
 
     // Offer received (Host Side)
     client.on("offer", async (data) => {
-      if (webrtcRef.current) {
-        await webrtcRef.current.handleOffer(data.sdp);
-      }
+      // Route offer to the correct session's WebRTC instance
+      setSessions((prev) => {
+        const session = Object.values(prev).find((s) => s.webrtc?.remotePeerId === data.from || s.id === data.from);
+        if (session?.webrtc) {
+          session.webrtc.handleOffer(data.sdp);
+        }
+        return prev;
+      });
     });
 
     // Answer received (Caller Side)
     client.on("answer", async (data) => {
-      if (webrtcRef.current) {
-        await webrtcRef.current.handleAnswer(data.sdp);
-      }
+      setSessions((prev) => {
+        const session = Object.values(prev).find((s) => s.webrtc?.remotePeerId === data.from || s.id === data.from);
+        if (session?.webrtc) {
+          session.webrtc.handleAnswer(data.sdp);
+        }
+        return prev;
+      });
     });
 
     // ICE candidate received
     client.on("ice-candidate", async (data) => {
-      if (webrtcRef.current) {
-        await webrtcRef.current.handleIceCandidate(data.candidate);
-      }
+      setSessions((prev) => {
+        const session = Object.values(prev).find((s) => s.webrtc?.remotePeerId === data.from || s.id === data.from);
+        if (session?.webrtc) {
+          session.webrtc.handleIceCandidate(data.candidate);
+        }
+        return prev;
+      });
     });
 
     // Session ended by remote peer
     client.on("session-ended", (data) => {
-      handleEndSession(data.reason || "Session ended by remote desk.");
+      const peerId = data.peerId || data.from;
+      if (peerId) {
+        handleCloseSession(peerId, data.reason || "Session ended by remote desk.");
+      }
     });
 
     // Unattended session started automatically
     client.on("unattended-session-started", async (data) => {
-      console.log("[MexDesk] Unattended session starting from caller:", data.callerId);
+      console.log("[AegisDesk] Unattended session starting from caller:", data.callerId);
       if (startHostSessionRef.current) {
         await startHostSessionRef.current(data.callerId, data.permissions || {
           control: true,
           fileTransfer: true,
           clipboard: true,
-          audio: true
+          audio: true,
         });
       }
     });
 
     const storedToken = localStorage.getItem("mexdesk_device_token") || null;
-    client.connect(myId || null, myAlias || "MexDesk Device", unattendedPassword || null, storedToken, optOutDiscovery);
+    client.connect(myId || null, myAlias || "AegisDesk Device", unattendedPassword || null, storedToken, optOutDiscovery);
 
     return () => {
       client.disconnect();
     };
   }, [signalingUrl]);
+
+  // ─── Session Management ────────────────────────────────
 
   const handleSaveAlias = (newAlias) => {
     if (signalingRef.current) {
@@ -312,41 +372,40 @@ export function App() {
   };
 
   const addRecentSession = (id, customAlias = null) => {
-    const existing = recentSessions.find((s) => s.id === id);
-    const aliasToUse = customAlias || existing?.alias || `Desk ${id}`;
-    const updated = [
-      { id, alias: aliasToUse, timestamp: Date.now() },
-      ...recentSessions.filter((s) => s.id !== id),
-    ].slice(0, 10);
-    setRecentSessions(updated);
-    localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
+    setRecentSessions((prev) => {
+      const existing = prev.find((s) => s.id === id);
+      const aliasToUse = customAlias || existing?.alias || `Desk ${id}`;
+      const updated = [
+        { id, alias: aliasToUse, timestamp: Date.now() },
+        ...prev.filter((s) => s.id !== id),
+      ].slice(0, 10);
+      localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const handleRenameRecent = (id, newAlias) => {
     const aliasToUse = (newAlias || "").trim() || `Desk ${id}`;
-    const updated = recentSessions.map((s) =>
-      s.id === id ? { ...s, alias: aliasToUse } : s
-    );
-    setRecentSessions(updated);
-    localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
+    setRecentSessions((prev) => {
+      const updated = prev.map((s) => (s.id === id ? { ...s, alias: aliasToUse } : s));
+      localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const removeRecentSession = (id) => {
-    const updated = recentSessions.filter((s) => s.id !== id);
-    setRecentSessions(updated);
-    localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
+    setRecentSessions((prev) => {
+      const updated = prev.filter((s) => s.id !== id);
+      localStorage.setItem("mexdesk_recent_sessions", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // Host: Start screen streaming & WebRTC session
   const startHostSession = async (callerId, permissions) => {
     setIncomingCall(null);
-    setSessionPermissions(permissions);
-    setRemoteId(callerId);
 
     try {
-      // Capture host screen stream
-      // In Electron: getDisplayMedia is intercepted by setDisplayMediaRequestHandler in main.js
-      // which auto-grants the primary screen with ZERO picker prompts (seamless like AnyDesk)
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: "always",
@@ -355,21 +414,34 @@ export function App() {
         audio: permissions.audio || false,
       });
 
-      localStreamRef.current = stream;
-
-      // Initialize WebRTC as Host (receiver of offer)
       const rtc = new WebRTCConnection(signalingRef.current, callerId, false);
-      webrtcRef.current = rtc;
+
+      createSession(callerId, {
+        alias: callingTarget.alias || "",
+        webrtc: rtc,
+        permissions,
+        localStream: stream,
+        connectionState: "connected",
+        role: "host",
+      });
 
       rtc.on("control-message", (event) => {
-        // Dispatch to native input injection in Electron
         if (window.mexdeskAPI && permissions.control) {
           window.mexdeskAPI.sendInput(event);
         }
       });
 
       rtc.on("chat-message", () => {
-        setUnreadChatCount((prev) => prev + 1);
+        setSessions((prev) => {
+          if (!prev[callerId]) return prev;
+          return {
+            ...prev,
+            [callerId]: {
+              ...prev[callerId],
+              unreadChatCount: prev[callerId].unreadChatCount + 1,
+            },
+          };
+        });
       });
 
       let hostDisconnectTimer = null;
@@ -379,10 +451,11 @@ export function App() {
             clearTimeout(hostDisconnectTimer);
             hostDisconnectTimer = null;
           }
+          updateSession(callerId, { connectionState: "connected" });
         } else if (state === "failed" || state === "closed") {
           if (!hostDisconnectTimer) {
             hostDisconnectTimer = setTimeout(() => {
-              handleEndSession("Remote desk closed connection");
+              handleCloseSession(callerId, "Remote desk closed connection");
             }, 12000);
           }
         }
@@ -391,11 +464,10 @@ export function App() {
       await rtc.init(stream);
       signalingRef.current.acceptCall(callerId, permissions);
     } catch (err) {
-      console.error("[MexDesk] Failed to start host session:", err);
+      console.error("[AegisDesk] Failed to start host session:", err);
       setErrorMessage("Could not share screen: " + err.message);
       setTimeout(() => setErrorMessage(""), 4000);
       signalingRef.current.rejectCall(callerId, "Screen capture was cancelled.");
-      handleEndSession();
     }
   };
 
@@ -419,7 +491,7 @@ export function App() {
   // Caller: Start connection request
   const handleStartConnect = (targetId, type = "full-control", password = null) => {
     if (!targetId || !targetId.trim()) {
-      setErrorMessage("Please enter a valid 9-digit MexDesk ID or alias.");
+      setErrorMessage("Please enter a valid 9-digit AegisDesk ID or alias.");
       setTimeout(() => setErrorMessage(""), 3500);
       return;
     }
@@ -438,7 +510,7 @@ export function App() {
       return;
     }
 
-    // Resolve alias if known locally
+    // Resolve alias
     const knownLan = lanPeers.find(
       (p) => p.id === cleanTarget || (p.alias && p.alias.toLowerCase() === cleanTarget.toLowerCase())
     );
@@ -446,38 +518,38 @@ export function App() {
       (s) => s.id === cleanTarget || (s.alias && s.alias.toLowerCase() === cleanTarget.toLowerCase())
     );
     const resolvedAlias = knownLan?.alias || knownRecent?.alias || "";
-    setRemoteAlias(resolvedAlias);
 
-    setRemoteId(cleanTarget);
+    setCallingTarget({ id: cleanTarget, alias: resolvedAlias });
     setErrorMessage("");
     setIsCallingModal(true);
 
-    signalingRef.current.callUser(cleanTarget, myAlias || "MexDesk User", password, type);
+    signalingRef.current.callUser(cleanTarget, myAlias || "AegisDesk User", password, type);
   };
 
-  // End Session
-  const handleEndSession = (reason = "Session closed") => {
+  // Close a specific session
+  const handleCloseSession = useCallback((peerId, reason = "Session closed") => {
     if (signalingRef.current) {
-      signalingRef.current.hangup();
+      signalingRef.current.hangup(peerId);
     }
-    if (webrtcRef.current) {
-      webrtcRef.current.close();
-      webrtcRef.current = null;
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-    }
-    setRemoteStream(null);
-    setSessionState("home");
-    setUnreadChatCount(0);
-    setIsCallingModal(false);
-    setPasswordChallenge(null);
+    removeSession(peerId);
 
     if (reason) {
       setErrorMessage(reason);
       setTimeout(() => setErrorMessage(""), 3500);
     }
+  }, [removeSession]);
+
+  // Tab management
+  const handleSwitchTab = (tabId) => {
+    setActiveTab(tabId);
+    // Reset unread count when switching to a session tab
+    if (tabId !== "home") {
+      updateSession(tabId, { unreadChatCount: 0 });
+    }
+  };
+
+  const handleCloseTab = (peerId) => {
+    handleCloseSession(peerId, "You ended the session.");
   };
 
   // Save Settings
@@ -494,18 +566,59 @@ export function App() {
     localStorage.setItem("mexdesk_signaling_url", newUrl);
   };
 
+  const handleSaveUpdatePref = (pref) => {
+    setUpdatePref(pref);
+    localStorage.setItem("aegisdesk_update_pref", pref);
+  };
+
+  const handleDismissUpdate = () => {
+    setUpdateAvailable(null);
+  };
+
+  // Get current active session (if any)
+  const activeSession = activeTab !== "home" ? sessions[activeTab] : null;
+  const isViewingSession = activeSession && activeSession.stream && activeSession.role === "controller";
+  const isHostingSession = activeSession && activeSession.role === "host";
+
   return (
     <div className="h-screen w-screen flex flex-col bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden select-none">
-      {/* TitleBar */}
+      {/* TitleBar with Session Tabs */}
       <TitleBar
-        isConnected={isConnected}
-        myId={myId}
-        onOpenSettings={() => setShowSettings(true)}
+        isOnline={isConnected}
+        onSettings={() => setShowSettings(true)}
+        activeTab={activeTab}
+        sessions={sessions}
+        onSwitchTab={handleSwitchTab}
+        onCloseTab={handleCloseTab}
       />
+
+      {/* Update Banner */}
+      {updateAvailable && (
+        <div className="bg-[#DC2626] text-white text-xs px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Download size={14} />
+            <span className="font-medium">
+              AegisDesk v{updateAvailable.version} is available.
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-md font-semibold transition flex items-center gap-1"
+            >
+              <RefreshCw size={12} />
+              Update Now
+            </button>
+            <button onClick={handleDismissUpdate} className="hover:opacity-80 px-1">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Global Error Banner */}
       {errorMessage && (
-        <div className="bg-mexdesk-red text-white text-xs px-4 py-2 flex items-center justify-between animate-in slide-in-from-top duration-200">
+        <div className="bg-[#DC2626] text-white text-xs px-4 py-2 flex items-center justify-between animate-in slide-in-from-top duration-200">
           <div className="flex items-center space-x-2">
             <AlertCircle size={14} />
             <span className="font-medium">{errorMessage}</span>
@@ -516,8 +629,9 @@ export function App() {
         </div>
       )}
 
-      {/* Main Body */}
-      {sessionState === "home" && (
+      {/* Main Body — Render based on activeTab */}
+      {/* Home Screen (visible when home tab is active) */}
+      <div className={activeTab === "home" ? "flex-1 flex flex-col overflow-hidden" : "hidden"}>
         <HomeScreen
           myId={myId}
           myAlias={myAlias}
@@ -535,63 +649,86 @@ export function App() {
           lanPeers={lanPeers}
           onRefreshLanPeers={() => signalingRef.current?.discoverLan()}
         />
-      )}
+      </div>
 
-      {sessionState === "controlling" && (
-        <RemoteViewer
-          webrtc={webrtcRef.current}
-          remoteStream={remoteStream}
-          targetPeerId={remoteId}
-          targetPeerAlias={remoteAlias}
-          permissions={sessionPermissions}
-          onDisconnect={() => handleEndSession("You ended the session.")}
-          unreadChatCount={unreadChatCount}
-          onResetChatCount={() => setUnreadChatCount(0)}
-        />
-      )}
-
-      {sessionState === "hosting" && (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-mexdesk-lightred text-mexdesk-red flex items-center justify-center animate-pulse shadow-redglow">
-            <span className="text-2xl font-bold">M</span>
-          </div>
-          <div>
-            <span className="text-xs uppercase tracking-wider font-semibold text-mexdesk-red block mb-1">
-              Active Host Session
-            </span>
-            <h2 className="text-xl font-bold text-slate-800">
-              Sharing screen with Desk <span className="font-mono text-mexdesk-red">{remoteAlias ? `${remoteAlias} (${remoteId})` : remoteId}</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              The remote desk can view and control your computer according to granted permissions.
-            </p>
-          </div>
-
-          <button
-            onClick={() => handleEndSession("You stopped sharing your screen.")}
-            className="px-6 py-2.5 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-xl shadow-md shadow-red-500/20 transition cursor-pointer"
+      {/* Remote Viewer Sessions — Each session stays mounted, only visible one is shown */}
+      {Object.entries(sessions).map(([peerId, session]) => {
+        if (session.role !== "controller" || !session.stream) return null;
+        return (
+          <div
+            key={peerId}
+            className={activeTab === peerId ? "flex-1 flex flex-col overflow-hidden" : "hidden"}
           >
-            End Remote Session
-          </button>
-        </div>
-      )}
+            <RemoteViewer
+              webrtc={session.webrtc}
+              remoteStream={session.stream}
+              targetPeerId={peerId}
+              targetPeerAlias={session.alias}
+              permissions={session.permissions}
+              onDisconnect={() => handleCloseSession(peerId, "You ended the session.")}
+              unreadChatCount={session.unreadChatCount}
+              onResetChatCount={() => updateSession(peerId, { unreadChatCount: 0 })}
+            />
+          </div>
+        );
+      })}
+
+      {/* Hosting Sessions — Show host panel if active tab is a host session */}
+      {Object.entries(sessions).map(([peerId, session]) => {
+        if (session.role !== "host") return null;
+        return (
+          <div
+            key={peerId}
+            className={activeTab === peerId ? "flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4" : "hidden"}
+          >
+            <div className="w-16 h-16 rounded-2xl bg-[#FFF1F1] text-[#DC2626] flex items-center justify-center animate-pulse">
+              <span className="text-2xl font-bold">A</span>
+            </div>
+            <div>
+              <span className="text-xs uppercase tracking-wider font-semibold text-[#DC2626] block mb-1">
+                Active Host Session
+              </span>
+              <h2 className="text-xl font-bold text-slate-800">
+                Sharing screen with Desk{" "}
+                <span className="font-mono text-[#DC2626]">
+                  {session.alias ? `${session.alias} (${peerId})` : peerId}
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                The remote desk can view and control your computer according to granted permissions.
+              </p>
+            </div>
+
+            <button
+              onClick={() => handleCloseSession(peerId, "You stopped sharing your screen.")}
+              className="px-6 py-2.5 bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-semibold rounded-xl shadow-md shadow-red-500/20 transition cursor-pointer"
+            >
+              End Remote Session
+            </button>
+          </div>
+        );
+      })}
 
       {/* Calling / Connecting Dialog */}
       {isCallingModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 w-full max-w-sm text-center space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="w-14 h-14 rounded-full bg-rose-50 border border-rose-200 text-mexdesk-red flex items-center justify-center mx-auto animate-record">
-              <span className="text-lg font-bold">M</span>
+            <div className="w-14 h-14 rounded-full bg-rose-50 border border-rose-200 text-[#DC2626] flex items-center justify-center mx-auto animate-pulse">
+              <span className="text-lg font-bold">A</span>
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-800">Connecting to Remote Desk...</h3>
-              <p className="text-xs font-mono text-mexdesk-red font-semibold mt-1">
-                {remoteAlias ? `${remoteAlias} (${remoteId})` : remoteId}
+              <p className="text-xs font-mono text-[#DC2626] font-semibold mt-1">
+                {callingTarget.alias ? `${callingTarget.alias} (${callingTarget.id})` : callingTarget.id}
               </p>
               <p className="text-[11px] text-slate-400 mt-1">Waiting for remote user to accept...</p>
             </div>
             <button
-              onClick={() => handleEndSession("Connection attempt cancelled.")}
+              onClick={() => {
+                setIsCallingModal(false);
+                setErrorMessage("Connection attempt cancelled.");
+                setTimeout(() => setErrorMessage(""), 3500);
+              }}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
             >
               Cancel
@@ -618,6 +755,8 @@ export function App() {
           onSaveSignalingUrl={handleSaveSignalingUrl}
           optOutDiscovery={optOutDiscovery}
           onSaveDiscoveryOptOut={handleSaveDiscoveryOptOut}
+          updatePref={updatePref}
+          onSaveUpdatePref={handleSaveUpdatePref}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -633,7 +772,7 @@ export function App() {
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Authentication Required</h3>
                 <p className="text-[11px] text-slate-500">
-                  Desk <span className="font-mono text-mexdesk-red font-semibold">{passwordChallenge.targetAlias || passwordChallenge.targetId}</span>
+                  Desk <span className="font-mono text-[#DC2626] font-semibold">{passwordChallenge.targetAlias || passwordChallenge.targetId}</span>
                 </p>
               </div>
             </div>
@@ -664,7 +803,7 @@ export function App() {
                   onChange={(e) => setChallengePasswordInput(e.target.value)}
                   placeholder="Enter remote password..."
                   autoFocus
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-mexdesk-red/30 focus:border-mexdesk-red transition font-mono"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#DC2626]/30 focus:border-[#DC2626] transition font-mono"
                 />
               </div>
 
@@ -682,7 +821,7 @@ export function App() {
                 <button
                   type="submit"
                   disabled={!challengePasswordInput.trim()}
-                  className="px-4 py-1.5 bg-mexdesk-red hover:bg-mexdesk-crimson disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1.5"
+                  className="px-4 py-1.5 bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1.5"
                 >
                   <span>Connect</span>
                   <ArrowRight size={13} />

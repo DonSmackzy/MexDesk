@@ -123,11 +123,11 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
         {/* Modal Header */}
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-mexdesk-lightred flex items-center justify-center text-mexdesk-red">
+            <div className="w-8 h-8 rounded-lg bg-aegis-lightred flex items-center justify-center text-aegis-red">
               <FolderSync size={18} />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-800">MexDesk File Transfer</h2>
+              <h2 className="text-sm font-bold text-slate-800">AegisDesk File Transfer</h2>
               <p className="text-[11px] text-slate-400">
                 P2P direct transfer with desk <strong className="font-mono text-slate-600">{targetPeerId}</strong>
               </p>
@@ -144,7 +144,7 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
             />
             <button
               onClick={handleUploadClick}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-mexdesk-red hover:bg-mexdesk-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-aegis-red hover:bg-aegis-crimson text-white text-xs font-semibold rounded-lg shadow-sm transition"
             >
               <Upload size={14} />
               <span>Send File...</span>
@@ -186,7 +186,7 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
                       onClick={() => handleSelectLocalFile(file.name)}
                       className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer transition select-none ${
                         isSelected
-                          ? "bg-rose-50 text-mexdesk-red font-medium border border-rose-200"
+                          ? "bg-rose-50 text-aegis-red font-medium border border-rose-200"
                           : "hover:bg-slate-50 text-slate-700 border border-transparent"
                       }`}
                     >
@@ -208,7 +208,7 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
           <div className="flex flex-col h-full overflow-hidden">
             <div className="p-2.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-700">
               <span className="flex items-center space-x-1">
-                <Folder size={14} className="text-mexdesk-red" />
+                <Folder size={14} className="text-aegis-red" />
                 <span>Remote Computer</span>
               </span>
               <span className="text-[11px] font-mono text-slate-400 truncate max-w-[180px]">{remotePath}</span>
@@ -256,7 +256,7 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
                       {t.status === "completed" ? (
                         <CheckCircle2 size={13} className="text-emerald-500" />
                       ) : (
-                        <ArrowRight size={13} className="text-mexdesk-red animate-pulse" />
+                        <ArrowRight size={13} className="text-aegis-red animate-pulse" />
                       )}
                       <span>{t.name}</span>
                     </span>
@@ -264,7 +264,7 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
                   </div>
                   <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                     <div
-                      className="bg-mexdesk-red h-full transition-all duration-200 rounded-full"
+                      className="bg-aegis-red h-full transition-all duration-200 rounded-full"
                       style={{ width: `${t.progress || 0}%` }}
                     />
                   </div>

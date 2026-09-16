@@ -14,7 +14,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("[MexDesk Root ErrorBoundary]", error, errorInfo);
+    console.error("[AegisDesk Root ErrorBoundary]", error, errorInfo);
   }
 
   render() {
@@ -45,10 +45,10 @@ class ErrorBoundary extends React.Component {
             fontWeight: "bold",
             marginBottom: "16px"
           }}>
-            M
+            A
           </div>
           <h2 style={{ fontSize: "18px", fontWeight: "bold", margin: "0 0 8px 0" }}>
-            MexDesk Encountered an Error
+            AegisDesk Encountered an Error
           </h2>
           <p style={{ fontSize: "12px", color: "#64748B", maxWidth: "420px", marginBottom: "16px" }}>
             {this.state.error?.message || "An unexpected error occurred while rendering the application interface."}
@@ -57,17 +57,17 @@ class ErrorBoundary extends React.Component {
             onClick={() => window.location.reload()}
             style={{
               padding: "8px 18px",
-              backgroundColor: "#E52E2E",
+              backgroundColor: "#DC2626",
               color: "#FFFFFF",
               border: "none",
               borderRadius: "8px",
               fontSize: "12px",
               fontWeight: 600,
               cursor: "pointer",
-              boxShadow: "0 2px 4px rgba(229, 46, 46, 0.2)"
+              boxShadow: "0 2px 4px rgba(220, 38, 38, 0.2)"
             }}
           >
-            Reload MexDesk
+            Reload AegisDesk
           </button>
         </div>
       );
