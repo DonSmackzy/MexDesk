@@ -4,6 +4,11 @@ const fs = require("fs").promises;
 const os = require("os");
 const inputController = require("./inputController");
 
+// Hardware GPU acceleration flags for low CPU usage & smooth video streaming
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
+
 let mainWindow = null;
 
 function createWindow() {
@@ -17,7 +22,7 @@ function createWindow() {
     minHeight: 640,
     frame: false, // Frameless window with AnyDesk styled custom title bar
     title: "AegisDesk",
-    icon: path.join(__dirname, "../public/logo.svg"),
+    icon: path.join(__dirname, "../public/icon.ico"),
     backgroundColor: "#F8FAFC",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -77,7 +82,7 @@ function createWindow() {
   const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
   const localIndexPath = path.join(__dirname, "../dist/index.html");
 
-  if (process.env.NODE_ENV === "development" || !app.isPackaged) {
+  if (process.env.NODE_ENV === "development" && !app.isPackaged) {
     // DEV MODE: Vite dev server → fallback to local dist
     mainWindow.loadURL(devUrl).catch(() => {
       mainWindow.loadFile(localIndexPath).catch((err) => {
@@ -86,12 +91,12 @@ function createWindow() {
       });
     });
   } else {
-    // PRODUCTION: Load live cloud app → fallback to local dist (offline mode)
-    console.log(`[AegisDesk Main] Loading cloud app: ${CLOUD_URL}`);
-    mainWindow.loadURL(CLOUD_URL).catch((err) => {
-      console.warn(`[AegisDesk Main] Cloud URL failed (${err.message}), falling back to local dist/index.html`);
-      mainWindow.loadFile(localIndexPath).catch((localErr) => {
-        console.error("[AegisDesk Main] Local fallback also failed:", localErr.message);
+    // PRODUCTION: Always load bundled local app directly for instant 0ms launch & offline reliability
+    console.log(`[AegisDesk Main] Loading local app: ${localIndexPath}`);
+    mainWindow.loadFile(localIndexPath).catch((err) => {
+      console.warn(`[AegisDesk Main] Local load failed (${err.message}), trying cloud URL fallback`);
+      mainWindow.loadURL(CLOUD_URL).catch((cloudErr) => {
+        console.error("[AegisDesk Main] Cloud fallback also failed:", cloudErr.message);
       });
     });
   }

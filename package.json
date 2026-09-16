@@ -28,7 +28,8 @@
       "**/node_modules/koffi/**/*"
     ],
     "win": {
-      "target": "portable"
+      "target": "portable",
+      "icon": "public/icon.ico"
     },
     "portable": {
       "artifactName": "AegisDesk.exe"
