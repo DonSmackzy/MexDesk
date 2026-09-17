@@ -99,12 +99,12 @@ function createWindow() {
       });
     });
   } else {
-    // PRODUCTION: Load live cloud app for instant web updates, fallback to local dist if offline
-    console.log(`[AegisDesk Main] Loading live cloud app: ${CLOUD_URL}`);
-    mainWindow.loadURL(CLOUD_URL).catch((err) => {
-      console.warn(`[AegisDesk Main] Cloud URL load failed (${err.message}), falling back to local bundled dist`);
-      mainWindow.loadFile(localIndexPath).catch((localErr) => {
-        console.error("[AegisDesk Main] Local fallback also failed:", localErr.message);
+    // PRODUCTION: Always load bundled local app directly for instant 0ms launch & offline reliability
+    console.log(`[AegisDesk Main] Loading local app: ${localIndexPath}`);
+    mainWindow.loadFile(localIndexPath).catch((err) => {
+      console.warn(`[AegisDesk Main] Local load failed (${err.message}), trying cloud URL fallback`);
+      mainWindow.loadURL(CLOUD_URL).catch((cloudErr) => {
+        console.error("[AegisDesk Main] Cloud fallback also failed:", cloudErr.message);
       });
     });
   }
