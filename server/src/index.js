@@ -384,7 +384,7 @@ function handleMessage(ws, msg) {
             issuedToken = crypto.randomBytes(32).toString("hex");
             deviceRegistry.set(assignedId, {
               tokenHash: hashAuthToken(issuedToken),
-              alias: msg.alias || "MexDesk Device",
+              alias: msg.alias || "AegisDesk Device",
               passwordHash: null,
               passwordSalt: null,
               createdAt: Date.now()
@@ -397,7 +397,7 @@ function handleMessage(ws, msg) {
           issuedToken = suppliedToken || crypto.randomBytes(32).toString("hex");
           deviceRegistry.set(assignedId, {
             tokenHash: hashAuthToken(issuedToken),
-            alias: msg.alias || "MexDesk Device",
+            alias: msg.alias || "AegisDesk Device",
             passwordHash: null,
             passwordSalt: null,
             createdAt: Date.now()
@@ -408,7 +408,7 @@ function handleMessage(ws, msg) {
           issuedToken = crypto.randomBytes(32).toString("hex");
           deviceRegistry.set(assignedId, {
             tokenHash: hashAuthToken(issuedToken),
-            alias: msg.alias || "MexDesk Device",
+            alias: msg.alias || "AegisDesk Device",
             passwordHash: null,
             passwordSalt: null,
             createdAt: Date.now()
@@ -491,7 +491,7 @@ function handleMessage(ws, msg) {
         }
 
         const peer = peers.get(peerId);
-        peer.alias = newAlias || "MexDesk Device";
+        peer.alias = newAlias || "AegisDesk Device";
 
         const reg = deviceRegistry.get(peerId);
         if (reg) {

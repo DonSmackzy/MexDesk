@@ -97,7 +97,7 @@ export function HomeScreen({
           <AegisLogo size={32} />
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              MexDesk
+              AegisDesk
             </h1>
             <p className="text-xs text-slate-400">
               Enterprise-grade, secure, ultra-low latency remote desktop access
@@ -134,7 +134,7 @@ export function HomeScreen({
               Standard web browsers operate inside an OS security sandbox: Chrome/Edge requires picking a screen to share and restricts websites from simulating native Windows mouse clicks.
             </p>
             <p className="text-amber-300 font-medium">
-              💡 For 1-click seamless screen sharing and full native mouse & keyboard remote control, run the <strong>MexDesk Desktop App</strong> on the host PC (<code className="bg-slate-900 px-1 py-0.5 rounded font-mono text-[11px] border border-[#334155]">npm run electron:start</code>).
+              💡 For 1-click seamless screen sharing and full native mouse & keyboard remote control, run the <strong>AegisDesk Desktop App</strong> on the host PC (<code className="bg-slate-900 px-1 py-0.5 rounded font-mono text-[11px] border border-[#334155]">npm run electron:start</code>).
             </p>
           </div>
         </div>
@@ -163,7 +163,7 @@ export function HomeScreen({
             {/* Big 9-Digit ID & Custom Alias Display - Iconic Indigo Card */}
             <div className="bg-[#818CF8] rounded-2xl p-5 shadow-lg shadow-indigo-950/40 mb-4 text-center text-white relative overflow-hidden">
               <span className="text-[11px] uppercase tracking-wider font-semibold text-indigo-100 block mb-1">
-                Your MexDesk Address
+                Your AegisDesk Address
               </span>
               <div className="text-3xl sm:text-4xl font-mono font-bold tracking-wider text-white flex items-center justify-center space-x-2 drop-shadow-sm my-1">
                 {myId ? (
@@ -402,7 +402,7 @@ export function HomeScreen({
             <button
               onClick={onRefreshLanPeers}
               className="flex items-center space-x-1 text-xs text-slate-400 hover:text-[#818CF8] transition cursor-pointer"
-              title="Rescan local network for MexDesk clients"
+              title="Rescan local network for AegisDesk clients"
             >
               <RefreshCw size={13} />
               <span>Rescan Network</span>
@@ -417,9 +417,9 @@ export function HomeScreen({
               <div className="w-12 h-12 rounded-full bg-[#0F172A] border border-[#334155] text-slate-400 flex items-center justify-center mx-auto mb-2">
                 <Wifi size={24} />
               </div>
-              <h3 className="text-xs font-semibold text-slate-300">No other MexDesk devices found on this network</h3>
+              <h3 className="text-xs font-semibold text-slate-300">No other AegisDesk devices found on this network</h3>
               <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
-                Open MexDesk on another computer connected to your local network or WiFi. It will automatically be detected and listed here for instant connection.
+                Open AegisDesk on another computer connected to your local network or WiFi. It will automatically be detected and listed here for instant connection.
               </p>
               {onRefreshLanPeers && (
                 <button
@@ -447,7 +447,7 @@ export function HomeScreen({
                     <div className="overflow-hidden flex-1 min-w-0">
                       <div className="flex items-center space-x-1.5">
                         <h3 className="text-xs font-bold text-white truncate">
-                          {peer.alias || "MexDesk Client"}
+                          {peer.alias || "AegisDesk Client"}
                         </h3>
                         <span className="text-[9px] bg-emerald-500/20 text-[#16A34A] font-bold px-1.5 py-0.2 rounded border border-emerald-500/30">
                           LAN

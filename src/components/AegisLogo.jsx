@@ -9,11 +9,20 @@ const AegisLogo = ({ size = 24, className = '' }) => (
     height={size}
     className={className}
   >
-    {/* Rounded indigo badge */}
-    <rect width="100" height="100" rx="24" fill="#4F46E5" />
-    {/* Clean geometric Letter M */}
+    {/* Aegis Shield shape */}
     <path
-      d="M26 74 V28 H38 L50 52 L62 28 H74 V74 H63 V44 L53 64 H47 L37 44 V74 Z"
+      d="M50 6 L88 24 L88 54 C88 74 69 90 50 96 C31 90 12 74 12 54 L12 24 Z"
+      fill="#4F46E5"
+    />
+    {/* Inner shield highlight */}
+    <path
+      d="M50 14 L81 29 L81 54 C81 70 65 84 50 89 C35 84 19 70 19 54 L19 29 Z"
+      fill="#FFFFFF"
+      opacity="0.18"
+    />
+    {/* Letter A */}
+    <path
+      d="M50 28 L34 72 L41 72 L45 60 L55 60 L59 72 L66 72 Z M47.5 52 L50 40 L52.5 52 Z"
       fill="#FFFFFF"
     />
   </svg>

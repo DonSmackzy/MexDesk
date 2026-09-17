@@ -21,8 +21,14 @@ function getOrCreateStaticDeviceId() {
 
 export function App() {
   const [isConnected, setIsConnected] = useState(false);
-  const [myId, setMyId] = useState(() => getOrCreateStaticDeviceId());
-  const [myAlias, setMyAlias] = useState(localStorage.getItem("mexdesk_my_alias") || "");
+  const [myAlias, setMyAlias] = useState(() => {
+    const saved = localStorage.getItem("aegisdesk_my_alias") || localStorage.getItem("mexdesk_my_alias");
+    if (saved === "MexDesk Device") {
+      localStorage.setItem("aegisdesk_my_alias", "AegisDesk Device");
+      return "AegisDesk Device";
+    }
+    return saved || "";
+  });
   const [unattendedPassword, setUnattendedPassword] = useState(
     localStorage.getItem("mexdesk_unattended_pw") || ""
   );
@@ -616,7 +622,7 @@ export function App() {
           <div className="flex items-center space-x-2">
             <Download size={14} />
             <span className="font-medium">
-              MexDesk v{updateAvailable.version} is available.
+              AegisDesk v{updateAvailable.version} is available.
             </span>
           </div>
           <div className="flex items-center space-x-2">

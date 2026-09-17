@@ -127,7 +127,7 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
               <FolderSync size={18} />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">MexDesk File Transfer</h2>
+              <h2 className="text-sm font-bold text-white">AegisDesk File Transfer</h2>
               <p className="text-[11px] text-slate-400">
                 P2P direct transfer with desk <strong className="font-mono text-[#818CF8]">{targetPeerId}</strong>
               </p>

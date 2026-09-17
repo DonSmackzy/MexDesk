@@ -45,10 +45,10 @@ class ErrorBoundary extends React.Component {
             fontWeight: "bold",
             marginBottom: "16px"
           }}>
-            M
+            A
           </div>
           <h2 style={{ fontSize: "18px", fontWeight: "bold", margin: "0 0 8px 0" }}>
-            MexDesk Encountered an Error
+            AegisDesk Encountered an Error
           </h2>
           <p style={{ fontSize: "12px", color: "#94A3B8", maxWidth: "420px", marginBottom: "16px" }}>
             {this.state.error?.message || "An unexpected error occurred while rendering the application interface."}
@@ -67,7 +67,7 @@ class ErrorBoundary extends React.Component {
               boxShadow: "0 2px 8px rgba(79, 70, 229, 0.4)"
             }}
           >
-            Reload MexDesk
+            Reload AegisDesk
           </button>
         </div>
       );

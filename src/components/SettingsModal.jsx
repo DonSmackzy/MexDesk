@@ -78,7 +78,7 @@ export function SettingsModal({
         <div className="p-4 border-b border-[#334155] flex items-center justify-between bg-[#0F172A]">
           <div className="flex items-center space-x-2">
             <AegisLogo size={28} />
-            <h2 className="text-sm font-bold text-white">MexDesk Settings</h2>
+            <h2 className="text-sm font-bold text-white">AegisDesk Settings</h2>
           </div>
           <button
             onClick={onClose}
@@ -254,7 +254,7 @@ export function SettingsModal({
                     </span>
                   </label>
                   <p className="text-[11px] text-slate-400 pl-6.5">
-                    Allow other computers running MexDesk on the same local network / WiFi to discover this desk.
+                    Allow other computers running AegisDesk on the same local network / WiFi to discover this desk.
                   </p>
                 </div>
 
@@ -273,7 +273,7 @@ export function SettingsModal({
                     <span>Update Preferences</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Choose how MexDesk handles new version updates.
+                    Choose how AegisDesk handles new version updates.
                   </p>
                 </div>
 
@@ -325,7 +325,7 @@ export function SettingsModal({
 
                 <div className="p-3 bg-[#0F172A] border border-[#334155] rounded-xl">
                   <p className="text-[11px] text-slate-400">
-                    MexDesk loads the latest UI from the cloud on each launch. Updates affect the web-layer interface. The desktop shell updates separately via new executable downloads.
+                    AegisDesk loads the latest UI from the cloud on each launch. Updates affect the web-layer interface. The desktop shell updates separately via new executable downloads.
                   </p>
                 </div>
               </div>
@@ -337,14 +337,14 @@ export function SettingsModal({
                 <div className="flex items-center space-x-3">
                   <AegisLogo size={48} />
                   <div>
-                    <h3 className="text-base font-bold text-white">MexDesk</h3>
+                    <h3 className="text-base font-bold text-white">AegisDesk</h3>
                     <p className="text-xs text-slate-400">Version 1.1.0</p>
                   </div>
                 </div>
 
                 <div className="p-4 bg-[#0F172A] rounded-xl border border-[#334155] text-xs text-slate-300 space-y-2">
                   <p>
-                    <strong className="text-white">MexDesk</strong> is a high-performance remote desktop solution built on
+                    <strong className="text-white">AegisDesk</strong> is an enterprise-grade remote desktop solution built on
                     WebRTC peer-to-peer streaming, React 18, and Electron.
                   </p>
                   <ul className="list-disc list-inside text-slate-400 space-y-1">

@@ -37,7 +37,7 @@ const TitleBar = ({
       {/* Left: Brand + Status */}
       <div className="flex items-center gap-2.5 px-3 shrink-0" style={{ WebkitAppRegion: 'no-drag' }}>
         <AegisLogo size={20} />
-        <span className="text-sm font-semibold text-white tracking-tight">MexDesk</span>
+        <span className="text-sm font-semibold text-white tracking-tight">AegisDesk</span>
 
         {/* Online/Offline Status Indicator matching mockup */}
         <div className="flex items-center gap-1.5 text-xs text-slate-400 ml-1">

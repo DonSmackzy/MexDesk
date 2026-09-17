@@ -1,16 +1,16 @@
-# MexDesk 🔴⚪
+# AegisDesk 🛡️
 
-**MexDesk** is a high-performance, AnyDesk-competing remote desktop application featuring an iconic red-and-white theme, sub-30ms WebRTC low-latency streaming, and an enterprise feature suite.
+**AegisDesk** is a high-performance enterprise remote desktop application featuring a modern dark slate & indigo design system, sub-30ms WebRTC low-latency streaming, and an enterprise feature suite.
 
 ---
 
 ## 🌟 Key Features
 
-- **Iconic AnyDesk Red & White UI**: Clean, modern interface styled after AnyDesk with high-contrast buttons, status badges, and 9-digit address display (`XXX-XXX-XXX`).
+- **Modern Dark Slate & Indigo UI**: Clean, modern interface styled with high-contrast slate surfaces, indigo accent controls, status badges, and 9-digit address display (`XXX-XXX-XXX`).
 - **Remote Desktop Control**: High-FPS screen sharing with mouse clicks, drag & drop, wheel scrolling, and keyboard keystrokes.
-- **Dual-Pane File Transfer**: AnyDesk-style dual-pane explorer (Local Computer ↔ Remote Computer) with 64KB chunked WebRTC DataChannel streaming and transfer progress.
+- **Dual-Pane File Transfer**: Enterprise dual-pane explorer (Local Computer ↔ Remote Computer) with 64KB chunked WebRTC DataChannel streaming and transfer progress.
 - **In-Session Chat**: Real-time slide-over encrypted text messaging with audio chimes and quick canned replies.
-- **Interactive Whiteboard**: On-screen drawing canvas overlay with AnyDesk Red pen, highlighters, arrows, shapes, and eraser synced across peers in real time.
+- **Interactive Whiteboard**: On-screen drawing canvas overlay with pen, highlighters, arrows, shapes, and eraser synced across peers in real time.
 - **Session Recording**: Native video capture recording the remote session directly into `.webm` format with zero CPU overhead.
 - **Unattended Access**: Password-protected unattended access allowing instant connection without remote physical approval.
 - **Privacy Mode**: Black out remote screen for confidentiality during sensitive maintenance tasks.
@@ -22,7 +22,7 @@
 
 ### 1. Install Dependencies
 ```bash
-# In MexDesk root
+# In AegisDesk root
 npm install
 
 # In server directory
@@ -37,13 +37,13 @@ npm run server
 ```
 *Runs on `ws://localhost:7777` by default.*
 
-### 3. Launch MexDesk
+### 3. Launch AegisDesk
 
 #### Option A: Web / Browser Mode (Fast testing & zero-install client)
 ```bash
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser. Open two browser tabs or windows to test remote connection between two 9-digit MexDesk IDs!
+Open [http://localhost:5173](http://localhost:5173) in your browser. Open two browser tabs or windows to test remote connection between two 9-digit AegisDesk IDs!
 
 #### Option B: Native Desktop Electron App
 ```bash
@@ -56,7 +56,7 @@ Launches the signaling server, Vite development server, and native Electron desk
 ## 🏗️ Architecture
 
 ```
-MexDesk/
+AegisDesk/
 ├── server/                          # Standalone WebSocket Signaling & Relay Server
 │   ├── package.json
 │   └── src/index.js                 # 9-digit ID generation, peer routing, SDP/ICE relay
