@@ -182,7 +182,7 @@ export function HomeScreen({
                       type="text"
                       value={aliasInput}
                       onChange={(e) => setAliasInput(e.target.value)}
-                      placeholder="e.g. boss-mezie@mex"
+                      placeholder="e.g. boss-mezie@aegis"
                       className="px-2.5 py-1 text-xs bg-white border border-white rounded-lg font-medium text-slate-900 focus:outline-none w-40 shadow-sm"
                       autoFocus
                     />
@@ -308,7 +308,7 @@ export function HomeScreen({
                     type="text"
                     value={remoteIdInput}
                     onChange={(e) => setRemoteIdInput(e.target.value)}
-                    placeholder="e.g. 482-901-325 or boss-mezie@mex"
+                    placeholder="e.g. 482-901-325 or boss-mezie@aegis"
                     className="w-full px-4 py-3 bg-[#0F172A] border border-[#334155] rounded-xl text-base font-mono font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:border-[#818CF8] focus:ring-1 focus:ring-[#818CF8] transition"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleStartConnect("full-control");

@@ -21,6 +21,7 @@ function getOrCreateStaticDeviceId() {
 
 export function App() {
   const [isConnected, setIsConnected] = useState(false);
+  const [myId, setMyId] = useState(() => getOrCreateStaticDeviceId());
   const [myAlias, setMyAlias] = useState(() => {
     const saved = localStorage.getItem("aegisdesk_my_alias") || localStorage.getItem("mexdesk_my_alias");
     if (saved === "MexDesk Device") {
