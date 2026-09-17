@@ -20,6 +20,8 @@ import {
   VolumeX,
   ShieldAlert,
   RefreshCw,
+  Gauge,
+  Zap,
 } from "lucide-react";
 import { InputCapture } from "../services/InputCapture";
 import { WhiteboardOverlay } from "./WhiteboardOverlay";
@@ -49,6 +51,8 @@ export function RemoteViewer({
   const [isMuted, setIsMuted] = useState(true); // Default to muted for seamless video autoplay
   const [volume, setVolume] = useState(1.0); // 0.0 to 1.0
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [qualityMode, setQualityMode] = useState("auto"); // "auto", "high", "balanced", "speed"
+  const [showQualityDropdown, setShowQualityDropdown] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState({ fps: 0, bitrate: 0, latency: 0 });
 
@@ -77,7 +81,7 @@ export function RemoteViewer({
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (isToolbarPinned || showActionsDropdown || showChat || showFileTransfer || showWhiteboard || showVolumeSlider) {
+    if (isToolbarPinned || showActionsDropdown || showChat || showFileTransfer || showWhiteboard || showVolumeSlider || showQualityDropdown) {
       setIsToolbarHidden(false);
       return;
     }
@@ -87,7 +91,7 @@ export function RemoteViewer({
         setIsToolbarHidden(true);
       }
     }, 3000);
-  }, [isToolbarPinned, showActionsDropdown, showChat, showFileTransfer, showWhiteboard, showVolumeSlider, isToolbarHovered]);
+  }, [isToolbarPinned, showActionsDropdown, showChat, showFileTransfer, showWhiteboard, showVolumeSlider, showQualityDropdown, isToolbarHovered]);
 
   // Sync with prop updates
   useEffect(() => {
@@ -425,6 +429,100 @@ export function RemoteViewer({
           <Monitor size={15} />
         </button>
 
+        {/* Streaming Quality Preset Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setShowQualityDropdown(!showQualityDropdown)}
+            className={`flex items-center space-x-0.5 p-1.5 rounded-full transition ${
+              qualityMode !== "auto"
+                ? "text-[#818CF8] bg-[#4F46E5]/20"
+                : "text-slate-300 hover:text-white hover:bg-[#1E293B]"
+            }`}
+            title={`Streaming Quality: ${qualityMode.toUpperCase()}`}
+          >
+            <Gauge size={15} />
+            <ChevronDown size={11} className="text-slate-400" />
+          </button>
+
+          {showQualityDropdown && (
+            <div className="absolute top-full mt-2 left-0 bg-[#1E293B] border border-[#334155] rounded-xl shadow-xl p-1.5 w-48 z-50 text-xs font-medium text-slate-200 space-y-0.5 animate-in fade-in duration-150">
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 border-b border-[#334155]">
+                Streaming Quality
+              </div>
+              <button
+                onClick={() => {
+                  setQualityMode("auto");
+                  webrtc?.send?.("control", { type: "set-quality-mode", mode: "auto" });
+                  setShowQualityDropdown(false);
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition ${
+                  qualityMode === "auto" ? "bg-[#4F46E5] text-white font-bold" : "hover:bg-[#334155]"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <Zap size={12} className="text-amber-400" />
+                    <span>Auto (Adaptive)</span>
+                  </div>
+                  <span className="text-[10px] opacity-75 block font-normal">Dynamic network throttling</span>
+                </div>
+                {qualityMode === "auto" && <span className="text-xs">✓</span>}
+              </button>
+
+              <button
+                onClick={() => {
+                  setQualityMode("high");
+                  webrtc?.send?.("control", { type: "set-quality-mode", mode: "high" });
+                  setShowQualityDropdown(false);
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition ${
+                  qualityMode === "high" ? "bg-[#4F46E5] text-white font-bold" : "hover:bg-[#334155]"
+                }`}
+              >
+                <div>
+                  <span>High (4.0 Mbps)</span>
+                  <span className="text-[10px] opacity-75 block font-normal">60 FPS • Native resolution</span>
+                </div>
+                {qualityMode === "high" && <span className="text-xs">✓</span>}
+              </button>
+
+              <button
+                onClick={() => {
+                  setQualityMode("balanced");
+                  webrtc?.send?.("control", { type: "set-quality-mode", mode: "balanced" });
+                  setShowQualityDropdown(false);
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition ${
+                  qualityMode === "balanced" ? "bg-[#4F46E5] text-white font-bold" : "hover:bg-[#334155]"
+                }`}
+              >
+                <div>
+                  <span>Balanced (2.0 Mbps)</span>
+                  <span className="text-[10px] opacity-75 block font-normal">30 FPS • Good for most networks</span>
+                </div>
+                {qualityMode === "balanced" && <span className="text-xs">✓</span>}
+              </button>
+
+              <button
+                onClick={() => {
+                  setQualityMode("speed");
+                  webrtc?.send?.("control", { type: "set-quality-mode", mode: "speed" });
+                  setShowQualityDropdown(false);
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition ${
+                  qualityMode === "speed" ? "bg-[#4F46E5] text-white font-bold" : "hover:bg-[#334155]"
+                }`}
+              >
+                <div>
+                  <span>Bandwidth Saver (700k)</span>
+                  <span className="text-[10px] opacity-75 block font-normal">20 FPS • 1.5x downscale</span>
+                </div>
+                {qualityMode === "speed" && <span className="text-xs">✓</span>}
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Audio Volume & Mute Control */}
         <div
           className="relative flex items-center"
@@ -661,15 +759,37 @@ export function RemoteViewer({
 
       {/* Stream Performance HUD */}
       {showStats && (
-        <div className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-lg px-3 py-1.5 text-[11px] text-slate-300 font-mono flex items-center space-x-3 pointer-events-none z-10 shadow-lg">
-          <div className="flex items-center space-x-1">
-            <span className={`w-1.5 h-1.5 rounded-full ${stats.fps > 0 ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`}></span>
-            <span>{stats.fps > 0 ? `${stats.fps} FPS` : "Measuring..."}</span>
+        <div className="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur-md border border-slate-700/60 rounded-xl px-3.5 py-2 text-[11px] text-slate-300 font-mono flex items-center space-x-3 pointer-events-none z-10 shadow-2xl">
+          <div className="flex items-center space-x-1.5">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                stats.packetLoss > 5
+                  ? "bg-rose-500 animate-ping"
+                  : stats.fps > 0
+                  ? "bg-emerald-400"
+                  : "bg-amber-400 animate-pulse"
+              }`}
+            />
+            <span className="font-semibold text-white">{stats.fps > 0 ? `${stats.fps} FPS` : "Measuring..."}</span>
           </div>
           <span>•</span>
           <span>{stats.bitrate > 0 ? `${stats.bitrate} kbps` : "-- kbps"}</span>
           <span>•</span>
           <span>{stats.latency > 0 ? `${stats.latency} ms` : "-- ms"}</span>
+          <span>•</span>
+          <span className={stats.packetLoss > 2 ? "text-amber-400 font-bold" : "text-slate-400"}>
+            Loss: {stats.packetLoss || 0}%
+          </span>
+          {stats.width > 0 && stats.height > 0 && (
+            <>
+              <span>•</span>
+              <span className="text-slate-400">{stats.width}x{stats.height}</span>
+            </>
+          )}
+          <span>•</span>
+          <span className="px-1.5 py-0.5 rounded bg-[#4F46E5]/20 text-[#818CF8] text-[10px] font-bold uppercase">
+            {qualityMode}
+          </span>
         </div>
       )}
 

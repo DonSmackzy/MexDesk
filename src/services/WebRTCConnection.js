@@ -24,6 +24,11 @@ export class WebRTCConnection {
 
     this.candidateQueue = [];
 
+    // Adaptive quality and rate control
+    this.qualityMode = localStorage.getItem("mexdesk_quality_profile") || "auto";
+    this.currentTier = 4;
+    this.consecutiveGoodIntervals = 0;
+
     let customTurn = null;
     try {
       const stored = localStorage.getItem("mexdesk_turn_config");
@@ -60,11 +65,33 @@ export class WebRTCConnection {
       iceCandidatePoolSize: 10,
     });
 
+    // Collect codec preferences (prioritizing VP9, VP8, H264)
+    let preferredVideoCodecs = null;
+    if ("RTCRtpReceiver" in window && typeof RTCRtpReceiver.getCapabilities === "function") {
+      try {
+        const capabilities = RTCRtpReceiver.getCapabilities("video");
+        if (capabilities && capabilities.codecs) {
+          const vp9 = capabilities.codecs.filter((c) => c.mimeType.toLowerCase() === "video/vp9");
+          const vp8 = capabilities.codecs.filter((c) => c.mimeType.toLowerCase() === "video/vp8");
+          const h264 = capabilities.codecs.filter((c) => c.mimeType.toLowerCase() === "video/h264");
+          const others = capabilities.codecs.filter(
+            (c) => !["video/vp9", "video/vp8", "video/h264"].includes(c.mimeType.toLowerCase())
+          );
+          preferredVideoCodecs = [...vp9, ...vp8, ...h264, ...others];
+        }
+      } catch (e) {}
+    }
+
     // In modern WebRTC Unified Plan: If initiator is receiving (viewer), declare recvonly transceivers
     if (this.isInitiator && !this.localStream) {
       try {
         const videoTransceiver = this.peerConnection.addTransceiver("video", { direction: "recvonly" });
         const audioTransceiver = this.peerConnection.addTransceiver("audio", { direction: "recvonly" });
+        if (videoTransceiver && typeof videoTransceiver.setCodecPreferences === "function" && preferredVideoCodecs) {
+          try {
+            videoTransceiver.setCodecPreferences(preferredVideoCodecs);
+          } catch (e) {}
+        }
         if (videoTransceiver?.receiver && "playoutDelayHint" in videoTransceiver.receiver) {
           videoTransceiver.receiver.playoutDelayHint = 0; // Zero latency playout for instant responsiveness
         }
@@ -107,6 +134,17 @@ export class WebRTCConnection {
           }
         }
       });
+
+      // Apply codec preferences on host transceivers if supported
+      if (preferredVideoCodecs) {
+        try {
+          const transceivers = this.peerConnection.getTransceivers();
+          const videoTransceiver = transceivers.find((t) => t.sender?.track?.kind === "video");
+          if (videoTransceiver && typeof videoTransceiver.setCodecPreferences === "function") {
+            videoTransceiver.setCodecPreferences(preferredVideoCodecs);
+          }
+        } catch (e) {}
+      }
     }
 
     // Handle remote track (client viewing host screen and listening to desktop audio)
@@ -210,6 +248,13 @@ export class WebRTCConnection {
       } else {
         try {
           const parsed = JSON.parse(event.data);
+          if (name === "control") {
+            if (parsed.type === "set-quality-mode") {
+              this.setQualityMode(parsed.mode);
+            } else if (parsed.type === "network-telemetry") {
+              this.handleNetworkTelemetry(parsed);
+            }
+          }
           this.trigger(`${name}-message`, parsed);
         } catch (e) {
           this.trigger(`${name}-raw`, event.data);
@@ -304,10 +349,111 @@ export class WebRTCConnection {
     return false;
   }
 
+  async applyEncodingParameters({ maxBitrate, maxFramerate, scaleResolutionDownBy }) {
+    if (!this.peerConnection) return;
+    try {
+      const senders = this.peerConnection.getSenders();
+      const videoSender = senders.find((s) => s.track && s.track.kind === "video");
+      if (!videoSender || !videoSender.getParameters) return;
+
+      const params = videoSender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) {
+        params.encodings = [{}];
+      }
+
+      let changed = false;
+      const enc = params.encodings[0];
+
+      if (enc.maxBitrate !== maxBitrate) {
+        enc.maxBitrate = maxBitrate;
+        changed = true;
+      }
+      if (enc.maxFramerate !== maxFramerate) {
+        enc.maxFramerate = maxFramerate;
+        changed = true;
+      }
+      if (enc.scaleResolutionDownBy !== scaleResolutionDownBy) {
+        enc.scaleResolutionDownBy = scaleResolutionDownBy;
+        changed = true;
+      }
+
+      if (changed) {
+        params.degradationPreference = "maintain-framerate";
+        await videoSender.setParameters(params);
+        console.log(`[WebRTC Quality] Applied params: ${Math.round(maxBitrate / 1000)} kbps, ${maxFramerate} fps, scale: ${scaleResolutionDownBy}`);
+      }
+    } catch (err) {
+      console.warn("[WebRTC Quality] applyEncodingParameters error:", err.message);
+    }
+  }
+
+  async setQualityMode(mode) {
+    this.qualityMode = mode;
+    console.log(`[WebRTC Quality] Quality mode changed: ${mode}`);
+    if (mode === "high") {
+      await this.applyEncodingParameters({ maxBitrate: 4000000, maxFramerate: 60, scaleResolutionDownBy: 1.0 });
+    } else if (mode === "balanced") {
+      await this.applyEncodingParameters({ maxBitrate: 2000000, maxFramerate: 30, scaleResolutionDownBy: 1.0 });
+    } else if (mode === "speed") {
+      await this.applyEncodingParameters({ maxBitrate: 700000, maxFramerate: 20, scaleResolutionDownBy: 1.5 });
+    } else {
+      this.applyTier(this.currentTier);
+    }
+  }
+
+  handleNetworkTelemetry({ rtt = 0, packetLoss = 0 }) {
+    if (this.qualityMode !== "auto") return;
+
+    let targetTier = 4;
+    if (rtt > 450 || packetLoss > 15) {
+      targetTier = 0;
+    } else if (rtt > 250 || packetLoss > 8) {
+      targetTier = 1;
+    } else if (rtt > 120 || packetLoss > 3) {
+      targetTier = 2;
+    } else if (rtt > 60 || packetLoss > 1) {
+      targetTier = 3;
+    } else {
+      targetTier = 4;
+    }
+
+    if (targetTier < this.currentTier) {
+      // Step down immediately on packet loss or latency spike
+      this.currentTier = targetTier;
+      this.consecutiveGoodIntervals = 0;
+      this.applyTier(this.currentTier);
+    } else if (targetTier > this.currentTier) {
+      // Require 2 consecutive good intervals before stepping up to avoid oscillation
+      this.consecutiveGoodIntervals = (this.consecutiveGoodIntervals || 0) + 1;
+      if (this.consecutiveGoodIntervals >= 2) {
+        this.currentTier += 1;
+        this.consecutiveGoodIntervals = 0;
+        this.applyTier(this.currentTier);
+      }
+    } else {
+      this.consecutiveGoodIntervals = 0;
+    }
+  }
+
+  applyTier(tier) {
+    const tiers = {
+      4: { maxBitrate: 4000000, maxFramerate: 60, scaleResolutionDownBy: 1.0 },
+      3: { maxBitrate: 2500000, maxFramerate: 60, scaleResolutionDownBy: 1.0 },
+      2: { maxBitrate: 1200000, maxFramerate: 30, scaleResolutionDownBy: 1.25 },
+      1: { maxBitrate: 600000, maxFramerate: 20, scaleResolutionDownBy: 1.5 },
+      0: { maxBitrate: 300000, maxFramerate: 15, scaleResolutionDownBy: 2.0 },
+    };
+    const settings = tiers[tier] || tiers[4];
+    this.applyEncodingParameters(settings);
+  }
+
   startStatsMonitoring() {
     this.stopStatsMonitoring();
     let prevBytes = 0;
     let prevTimestamp = Date.now();
+    let prevPacketsLost = 0;
+    let prevPacketsReceived = 0;
+    let telemetryCounter = 0;
 
     this.statsTimer = setInterval(async () => {
       if (!this.peerConnection) return;
@@ -316,24 +462,74 @@ export class WebRTCConnection {
         let fps = 0;
         let bitrate = 0;
         let latency = 0;
+        let packetLoss = 0;
+        let width = 0;
+        let height = 0;
 
         stats.forEach((report) => {
           if (report.type === "inbound-rtp" && report.kind === "video") {
-            fps = report.framesPerSecond || 0;
+            fps = Math.round(report.framesPerSecond || 0);
+            width = report.frameWidth || 0;
+            height = report.frameHeight || 0;
+
             const now = Date.now();
             const bytes = report.bytesReceived || 0;
-            if (prevBytes > 0) {
+            if (prevBytes > 0 && now > prevTimestamp) {
               bitrate = Math.round(((bytes - prevBytes) * 8) / ((now - prevTimestamp) / 1000) / 1000); // kbps
             }
             prevBytes = bytes;
             prevTimestamp = now;
+
+            const currentLost = report.packetsLost || 0;
+            const currentRecv = report.packetsReceived || 0;
+            const deltaLost = Math.max(0, currentLost - prevPacketsLost);
+            const deltaRecv = Math.max(0, currentRecv - prevPacketsReceived);
+            const total = deltaLost + deltaRecv;
+            if (total > 0) {
+              packetLoss = Math.min(100, Math.round((deltaLost / total) * 1000) / 10);
+            }
+            prevPacketsLost = currentLost;
+            prevPacketsReceived = currentRecv;
           }
+
           if (report.type === "candidate-pair" && report.state === "succeeded") {
             latency = Math.round((report.currentRoundTripTime || 0) * 1000); // ms
           }
+
+          // Host side RTCP remote-inbound-rtp inspection
+          if (report.type === "remote-inbound-rtp" && report.kind === "video") {
+            const fraction = report.fractionLost || 0;
+            const rtcpLoss = Math.min(100, Math.round(fraction * 1000) / 10);
+            const rtcpRtt = Math.round((report.roundTripTime || 0) * 1000);
+            if (this.localStream && this.qualityMode === "auto") {
+              this.handleNetworkTelemetry({ rtt: rtcpRtt, packetLoss: rtcpLoss });
+            }
+          }
         });
 
-        this.trigger("stats", { fps, bitrate, latency });
+        this.trigger("stats", {
+          fps,
+          bitrate,
+          latency,
+          packetLoss,
+          width,
+          height,
+          qualityMode: this.qualityMode,
+          tier: this.currentTier,
+        });
+
+        // Viewer sends periodic network telemetry to host every 2 seconds
+        telemetryCounter++;
+        if (!this.localStream && telemetryCounter >= 2) {
+          telemetryCounter = 0;
+          this.send("control", {
+            type: "network-telemetry",
+            rtt: latency,
+            packetLoss,
+            fps,
+            bitrate,
+          });
+        }
       } catch (e) {
         // ignore stats errors
       }
