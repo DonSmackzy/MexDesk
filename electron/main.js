@@ -99,12 +99,13 @@ function createWindow() {
       });
     });
   } else {
-    // PRODUCTION: Always load bundled local app directly for instant 0ms launch & offline reliability
-    console.log(`[AegisDesk Main] Loading local app: ${localIndexPath}`);
-    mainWindow.loadFile(localIndexPath).catch((err) => {
-      console.warn(`[AegisDesk Main] Local load failed (${err.message}), trying cloud URL fallback`);
-      mainWindow.loadURL(CLOUD_URL).catch((cloudErr) => {
-        console.error("[AegisDesk Main] Cloud fallback also failed:", cloudErr.message);
+    // PRODUCTION: Load latest live app from cloud over the internet for automatic zero-touch updates.
+    // If offline or network is unavailable, seamlessly fall back to the bundled local app.
+    console.log(`[AegisDesk Main] Loading live app from cloud: ${CLOUD_URL}`);
+    mainWindow.loadURL(CLOUD_URL).catch((err) => {
+      console.warn(`[AegisDesk Main] Cloud load failed (${err.message}), falling back to local bundle`);
+      mainWindow.loadFile(localIndexPath).catch((localErr) => {
+        console.error("[AegisDesk Main] Local fallback also failed:", localErr.message);
       });
     });
   }

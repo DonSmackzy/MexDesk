@@ -161,12 +161,23 @@ const server = http.createServer((req, res) => {
 
     if (fs.existsSync(safePath) && fs.statSync(safePath).isFile()) {
       const ext = path.extname(safePath).toLowerCase();
-      res.writeHead(200, {
+      const isHtml = ext === ".html";
+      const headers = {
         "Content-Type": MIME_TYPES[ext] || "application/octet-stream",
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
         "Referrer-Policy": "no-referrer"
-      });
+      };
+
+      if (isHtml) {
+        headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        headers["Pragma"] = "no-cache";
+        headers["Expires"] = "0";
+      } else if (cleanUrl.startsWith("/assets/")) {
+        headers["Cache-Control"] = "public, max-age=31536000, immutable";
+      }
+
+      res.writeHead(200, headers);
       const stream = fs.createReadStream(safePath);
       stream.on("error", () => {
         if (!res.headersSent) {
@@ -189,6 +200,9 @@ const server = http.createServer((req, res) => {
     if (fs.existsSync(indexPath)) {
       res.writeHead(200, {
         "Content-Type": "text/html",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN"
       });
