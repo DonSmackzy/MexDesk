@@ -6,7 +6,25 @@ import { IncomingCallModal } from "./components/IncomingCallModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { SignalingClient } from "./services/SignalingClient";
 import { WebRTCConnection } from "./services/WebRTCConnection";
-import { Lock, ArrowRight, X, AlertCircle, Download, RefreshCw } from "lucide-react";
+import AegisLogo from "./components/AegisLogo";
+import {
+  Lock,
+  ArrowRight,
+  X,
+  AlertCircle,
+  Download,
+  RefreshCw,
+  MousePointer,
+  FolderSync,
+  Clipboard,
+  Volume2,
+  Shield,
+  ShieldAlert,
+  Pause,
+  Play,
+  Monitor,
+  Check,
+} from "lucide-react";
 
 function getOrCreateStaticDeviceId() {
   let id = localStorage.getItem("mexdesk_device_static_id") || localStorage.getItem("mexdesk_my_id");
@@ -92,6 +110,7 @@ export function App() {
   // References
   const signalingRef = useRef(null);
   const startHostSessionRef = useRef(null);
+  const hostPermissionsRef = useRef({});
 
   // ─── Session Helpers ────────────────────────────────────
   const updateSession = useCallback((peerId, patch) => {
@@ -113,6 +132,7 @@ export function App() {
         next[peerId].localStream.getTracks().forEach((t) => t.stop());
       }
       delete next[peerId];
+      delete hostPermissionsRef.current[peerId];
       const remainingHostSessions = Object.values(next).some((s) => s.role === "host");
       if (!remainingHostSessions && window.mexdeskAPI?.updateSessionControlState) {
         window.mexdeskAPI.updateSessionControlState(false, false);
@@ -143,6 +163,95 @@ export function App() {
         role: data.role || "controller", // "controller" | "host"
       },
     }));
+  }, []);
+
+  // Dynamic in-session permission toggle for host
+  const handleToggleHostPermission = useCallback((peerId, permissionKey) => {
+    setSessions((prev) => {
+      const session = prev[peerId];
+      if (!session || session.role !== "host") return prev;
+
+      const currentPerms = hostPermissionsRef.current[peerId] || session.permissions || {
+        control: true,
+        fileTransfer: true,
+        clipboard: true,
+        audio: true,
+      };
+
+      const updatedPerms = {
+        ...currentPerms,
+        [permissionKey]: !currentPerms[permissionKey],
+      };
+
+      hostPermissionsRef.current[peerId] = updatedPerms;
+
+      // Update native Electron security layer
+      if (window.mexdeskAPI?.updateSessionControlState) {
+        window.mexdeskAPI.updateSessionControlState(true, Boolean(updatedPerms.control));
+      }
+
+      // Notify remote peer via WebRTC data channel
+      if (session.webrtc) {
+        session.webrtc.send("control", {
+          type: "permissions-updated",
+          permissions: updatedPerms,
+        });
+      }
+
+      return {
+        ...prev,
+        [peerId]: {
+          ...session,
+          permissions: updatedPerms,
+        },
+      };
+    });
+  }, []);
+
+  // Emergency Pause / Resume All
+  const handleToggleAllHostPermissions = useCallback((peerId) => {
+    setSessions((prev) => {
+      const session = prev[peerId];
+      if (!session || session.role !== "host") return prev;
+
+      const currentPerms = hostPermissionsRef.current[peerId] || session.permissions || {
+        control: true,
+        fileTransfer: true,
+        clipboard: true,
+        audio: true,
+      };
+
+      const anyActive = Boolean(currentPerms.control || currentPerms.clipboard || currentPerms.fileTransfer);
+      const targetState = !anyActive;
+
+      const updatedPerms = {
+        control: targetState,
+        clipboard: targetState,
+        fileTransfer: targetState,
+        audio: currentPerms.audio, // preserve audio preference
+      };
+
+      hostPermissionsRef.current[peerId] = updatedPerms;
+
+      if (window.mexdeskAPI?.updateSessionControlState) {
+        window.mexdeskAPI.updateSessionControlState(true, targetState);
+      }
+
+      if (session.webrtc) {
+        session.webrtc.send("control", {
+          type: "permissions-updated",
+          permissions: updatedPerms,
+        });
+      }
+
+      return {
+        ...prev,
+        [peerId]: {
+          ...session,
+          permissions: updatedPerms,
+        },
+      };
+    });
   }, []);
 
   // ─── Initialize Signaling Client ────────────────────────
@@ -440,8 +549,11 @@ export function App() {
         role: "host",
       });
 
+      hostPermissionsRef.current[callerId] = { ...permissions };
+
       rtc.on("control-message", (event) => {
-        if (window.mexdeskAPI && permissions.control) {
+        const livePerms = hostPermissionsRef.current[callerId] || {};
+        if (window.mexdeskAPI && livePerms.control) {
           window.mexdeskAPI.sendInput(event);
         }
       });
@@ -703,48 +815,212 @@ export function App() {
         );
       })}
 
-      {/* Hosting Sessions — Show host panel if active tab is a host session */}
+      {/* Hosting Sessions — Interactive Host Permission Control Center */}
       {Object.entries(sessions).map(([peerId, session]) => {
         if (session.role !== "host") return null;
+        const perms = session.permissions || { control: true, fileTransfer: true, clipboard: true, audio: true };
+        const anyControlActive = Boolean(perms.control || perms.clipboard || perms.fileTransfer);
+
         return (
           <div
             key={peerId}
-            className={activeTab === peerId ? "flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4" : "hidden"}
+            className={activeTab === peerId ? "flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6 max-w-2xl mx-auto overflow-y-auto" : "hidden"}
           >
-            <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 text-[#818CF8] flex items-center justify-center animate-pulse border border-indigo-500/30">
-              <span className="text-2xl font-bold">M</span>
-            </div>
-            <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-[#818CF8] block mb-1">
-                Active Host Session
-              </span>
-              <h2 className="text-xl font-bold text-white">
-                Sharing screen with Desk{" "}
-                <span className="font-mono text-[#818CF8]">
-                  {session.alias ? `${session.alias} (${peerId})` : peerId}
-                </span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                The remote desk can view and control your computer according to granted permissions.
-              </p>
+            {/* Host Status Badge */}
+            <div className="flex items-center space-x-3.5 bg-[#1E293B] border border-[#334155] rounded-2xl px-6 py-3.5 shadow-xl">
+              <div className="w-10 h-10 rounded-xl bg-[#4F46E5]/20 border border-[#4F46E5]/40 flex items-center justify-center shrink-0">
+                <AegisLogo size={24} />
+              </div>
+              <div className="text-left">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#818CF8]">
+                    Active Screen Sharing Session
+                  </span>
+                </div>
+                <h2 className="text-sm font-bold text-white">
+                  Connected Peer:{" "}
+                  <span className="text-[#818CF8] font-mono">
+                    {session.alias ? `${session.alias} (${peerId})` : peerId}
+                  </span>
+                </h2>
+              </div>
             </div>
 
-            <button
-              onClick={() => handleCloseSession(peerId, "You stopped sharing your screen.")}
-              className="px-6 py-2.5 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-semibold rounded-xl shadow-md shadow-red-900/30 transition cursor-pointer"
-            >
-              End Remote Session
-            </button>
+            {/* In-Session Granular Permission Controls */}
+            <div className="w-full bg-[#1E293B] border border-[#334155] rounded-2xl p-5 shadow-2xl space-y-4 text-left">
+              <div className="flex items-center justify-between border-b border-[#334155] pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <Shield size={16} className="text-[#818CF8]" />
+                    In-Session Access Permissions
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Click any permission below to instantly grant or revoke access in real-time.
+                  </p>
+                </div>
+                {/* Emergency Pause / Resume All */}
+                <button
+                  onClick={() => handleToggleAllHostPermissions(peerId)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                    anyControlActive
+                      ? "bg-amber-500/15 border border-amber-500/40 text-amber-300 hover:bg-amber-500/25"
+                      : "bg-[#16A34A]/15 border border-[#16A34A]/40 text-green-300 hover:bg-[#16A34A]/25"
+                  }`}
+                  title={anyControlActive ? "Instantly pause all remote control" : "Restore remote control"}
+                >
+                  {anyControlActive ? <Pause size={13} /> : <Play size={13} />}
+                  <span>{anyControlActive ? "Pause All Control" : "Resume All Control"}</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Mouse & Keyboard */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleHostPermission(peerId, "control")}
+                  className={`flex items-center justify-between p-3.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-left ${
+                    perms.control
+                      ? "bg-[#4F46E5]/15 border-[#4F46E5]/50 text-white shadow-sm"
+                      : "bg-[#0F172A] border-[#334155] text-slate-400 hover:border-slate-500"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <div className={`p-2 rounded-lg ${perms.control ? "bg-[#4F46E5] text-white" : "bg-slate-800 text-slate-500"}`}>
+                      <MousePointer size={16} />
+                    </div>
+                    <div>
+                      <span className="block text-slate-200">Mouse & Keyboard</span>
+                      <span className="text-[10px] font-normal text-slate-400">
+                        {perms.control ? "Remote control active" : "Control revoked (View only)"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-8 h-4 rounded-full transition-colors relative ${perms.control ? "bg-[#16A34A]" : "bg-slate-700"}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform absolute top-0.5 ${perms.control ? "right-0.5" : "left-0.5"}`} />
+                  </div>
+                </button>
+
+                {/* Clipboard Sync */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleHostPermission(peerId, "clipboard")}
+                  className={`flex items-center justify-between p-3.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-left ${
+                    perms.clipboard
+                      ? "bg-[#4F46E5]/15 border-[#4F46E5]/50 text-white shadow-sm"
+                      : "bg-[#0F172A] border-[#334155] text-slate-400 hover:border-slate-500"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <div className={`p-2 rounded-lg ${perms.clipboard ? "bg-[#4F46E5] text-white" : "bg-slate-800 text-slate-500"}`}>
+                      <Clipboard size={16} />
+                    </div>
+                    <div>
+                      <span className="block text-slate-200">Clipboard Sync</span>
+                      <span className="text-[10px] font-normal text-slate-400">
+                        {perms.clipboard ? "Copy/paste enabled" : "Clipboard isolated"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-8 h-4 rounded-full transition-colors relative ${perms.clipboard ? "bg-[#16A34A]" : "bg-slate-700"}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform absolute top-0.5 ${perms.clipboard ? "right-0.5" : "left-0.5"}`} />
+                  </div>
+                </button>
+
+                {/* File Transfer */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleHostPermission(peerId, "fileTransfer")}
+                  className={`flex items-center justify-between p-3.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-left ${
+                    perms.fileTransfer
+                      ? "bg-[#4F46E5]/15 border-[#4F46E5]/50 text-white shadow-sm"
+                      : "bg-[#0F172A] border-[#334155] text-slate-400 hover:border-slate-500"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <div className={`p-2 rounded-lg ${perms.fileTransfer ? "bg-[#4F46E5] text-white" : "bg-slate-800 text-slate-500"}`}>
+                      <FolderSync size={16} />
+                    </div>
+                    <div>
+                      <span className="block text-slate-200">File Transfer</span>
+                      <span className="text-[10px] font-normal text-slate-400">
+                        {perms.fileTransfer ? "P2P transfer allowed" : "File transfer blocked"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-8 h-4 rounded-full transition-colors relative ${perms.fileTransfer ? "bg-[#16A34A]" : "bg-slate-700"}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform absolute top-0.5 ${perms.fileTransfer ? "right-0.5" : "left-0.5"}`} />
+                  </div>
+                </button>
+
+                {/* Audio Transmission */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleHostPermission(peerId, "audio")}
+                  className={`flex items-center justify-between p-3.5 rounded-xl border text-xs font-semibold transition cursor-pointer text-left ${
+                    perms.audio
+                      ? "bg-[#4F46E5]/15 border-[#4F46E5]/50 text-white shadow-sm"
+                      : "bg-[#0F172A] border-[#334155] text-slate-400 hover:border-slate-500"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <div className={`p-2 rounded-lg ${perms.audio ? "bg-[#4F46E5] text-white" : "bg-slate-800 text-slate-500"}`}>
+                      <Volume2 size={16} />
+                    </div>
+                    <div>
+                      <span className="block text-slate-200">Transmit Audio</span>
+                      <span className="text-[10px] font-normal text-slate-400">
+                        {perms.audio ? "Desktop audio sharing" : "Audio muted"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-8 h-4 rounded-full transition-colors relative ${perms.audio ? "bg-[#16A34A]" : "bg-slate-700"}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform absolute top-0.5 ${perms.audio ? "right-0.5" : "left-0.5"}`} />
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* End Session Button */}
+            <div className="pt-1">
+              <button
+                onClick={() => handleCloseSession(peerId, "You stopped sharing your screen.")}
+                className="px-6 py-2.5 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold rounded-xl shadow-md shadow-red-900/30 transition cursor-pointer flex items-center gap-2 mx-auto"
+              >
+                <X size={15} />
+                <span>Disconnect & End Session</span>
+              </button>
+            </div>
           </div>
         );
       })}
+
+      {/* Floating Host Session Quick-Access Pill (if viewing home tab while hosting) */}
+      {activeTab === "home" && Object.entries(sessions).some(([_, s]) => s.role === "host") && (
+        <div className="fixed bottom-4 right-4 z-40 bg-[#1E293B]/95 backdrop-blur-md border border-[#4F46E5]/40 p-3 rounded-2xl shadow-2xl flex items-center space-x-3 text-xs animate-in fade-in slide-in-from-bottom-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#16A34A] animate-ping" />
+          <div>
+            <span className="text-slate-300 font-bold block">Hosting Active Session</span>
+            <span className="text-[10px] text-slate-400">Remote user connected</span>
+          </div>
+          {Object.entries(sessions).filter(([_, s]) => s.role === "host").map(([hostPeerId]) => (
+            <button
+              key={hostPeerId}
+              onClick={() => setActiveTab(hostPeerId)}
+              className="px-3 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold rounded-xl text-xs transition cursor-pointer"
+            >
+              Manage Permissions
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Calling / Connecting Dialog */}
       {isCallingModal && (
         <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1E293B] rounded-2xl border border-[#334155] shadow-2xl p-6 w-full max-w-sm text-center space-y-4 animate-in zoom-in-95 duration-150">
             <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 text-[#818CF8] flex items-center justify-center mx-auto animate-pulse">
-              <span className="text-lg font-bold">M</span>
+              <AegisLogo size={28} />
             </div>
             <div>
               <h3 className="text-sm font-bold text-white">Connecting to Remote Desk...</h3>

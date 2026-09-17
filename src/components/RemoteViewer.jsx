@@ -18,6 +18,7 @@ import {
   Lock,
   Volume2,
   VolumeX,
+  ShieldAlert,
 } from "lucide-react";
 import { InputCapture } from "../services/InputCapture";
 import { WhiteboardOverlay } from "./WhiteboardOverlay";
@@ -64,6 +65,10 @@ export function RemoteViewer({
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
 
+  // Live dynamic permissions
+  const [livePermissions, setLivePermissions] = useState(permissions);
+  const [permissionNotice, setPermissionNotice] = useState("");
+
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     if (isToolbarPinned || showActionsDropdown || showChat || showFileTransfer || showWhiteboard) {
@@ -77,6 +82,31 @@ export function RemoteViewer({
       }
     }, 3000);
   }, [isToolbarPinned, showActionsDropdown, showChat, showFileTransfer, showWhiteboard, isToolbarHovered]);
+
+  // Sync with prop updates
+  useEffect(() => {
+    setLivePermissions(permissions);
+  }, [permissions]);
+
+  // Listen to remote permission updates from host
+  useEffect(() => {
+    if (!webrtc) return;
+    const unsubscribe = webrtc.on("control-message", (msg) => {
+      if (msg && msg.type === "permissions-updated" && msg.permissions) {
+        setLivePermissions(msg.permissions);
+        if (!msg.permissions.control) {
+          setPermissionNotice("Host paused remote mouse & keyboard control");
+        } else {
+          setPermissionNotice("Host restored remote mouse & keyboard control");
+        }
+        if (!msg.permissions.fileTransfer) {
+          setShowFileTransfer(false);
+        }
+        setTimeout(() => setPermissionNotice(""), 4500);
+      }
+    });
+    return unsubscribe;
+  }, [webrtc]);
 
   // Bind remote stream to video element
   useEffect(() => {
@@ -99,7 +129,7 @@ export function RemoteViewer({
 
   // Attach input capture
   useEffect(() => {
-    if (permissions.control && containerRef.current && webrtc) {
+    if (livePermissions?.control && containerRef.current && webrtc) {
       const capture = new InputCapture(webrtc, containerRef.current, videoRef.current);
       capture.attach(containerRef.current, videoRef.current);
       inputCaptureRef.current = capture;
@@ -107,8 +137,11 @@ export function RemoteViewer({
       return () => {
         capture.detach();
       };
+    } else if (inputCaptureRef.current) {
+      inputCaptureRef.current.detach();
+      inputCaptureRef.current = null;
     }
-  }, [permissions.control, webrtc, remoteStream]);
+  }, [livePermissions?.control, webrtc, remoteStream]);
 
   // Listen to WebRTC stats
   useEffect(() => {
@@ -310,6 +343,14 @@ export function RemoteViewer({
           )}
         </div>
 
+        {/* View-Only Indicator if input revoked by host */}
+        {!livePermissions?.control && (
+          <div className="flex items-center space-x-1 px-2.5 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded-full text-[10px] font-bold text-amber-300 animate-in fade-in">
+            <EyeOff size={11} />
+            <span>View Only</span>
+          </div>
+        )}
+
         {/* Display scaling mode */}
         <button
           onClick={() =>
@@ -388,7 +429,7 @@ export function RemoteViewer({
         </button>
 
         {/* Dual-pane File Transfer */}
-        {permissions.fileTransfer && (
+        {livePermissions?.fileTransfer && (
           <button
             onClick={() => setShowFileTransfer(true)}
             className="p-1.5 rounded-full hover:bg-[#1E293B] transition text-slate-300 hover:text-white"
@@ -475,6 +516,14 @@ export function RemoteViewer({
           <span>Disconnect</span>
         </button>
       </div>
+
+      {/* Dynamic Permission Revoke Alert Banner */}
+      {permissionNotice && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 bg-[#0F172A]/95 border border-amber-500/50 text-amber-300 px-4 py-1.5 rounded-full text-xs font-semibold shadow-2xl flex items-center space-x-2 animate-in fade-in slide-in-from-top-2 duration-150">
+          <ShieldAlert size={14} className="text-amber-400 shrink-0" />
+          <span>{permissionNotice}</span>
+        </div>
+      )}
 
       {/* Stream Performance HUD */}
       {showStats && (
