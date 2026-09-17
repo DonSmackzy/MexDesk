@@ -19,6 +19,7 @@ import {
   Volume2,
   VolumeX,
   ShieldAlert,
+  RefreshCw,
 } from "lucide-react";
 import { InputCapture } from "../services/InputCapture";
 import { WhiteboardOverlay } from "./WhiteboardOverlay";
@@ -31,6 +32,9 @@ export function RemoteViewer({
   targetPeerId,
   targetPeerAlias = "",
   permissions = { control: true, fileTransfer: true, clipboard: true, audio: true },
+  connectionState = "connected",
+  reconnectAttempt = 1,
+  onRetryConnection,
   onDisconnect,
   unreadChatCount,
   onResetChatCount,
@@ -277,6 +281,40 @@ export function RemoteViewer({
         </div>
       )}
 
+      {/* Reconnection In-Progress HUD Overlay */}
+      {connectionState === "reconnecting" && (
+        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center text-white z-30 animate-in fade-in duration-200">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mb-4 shadow-xl">
+            <RefreshCw size={32} className="text-amber-400 animate-spin" />
+          </div>
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <span>Connection Interrupted</span>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono font-medium">
+              Attempt {reconnectAttempt} of 5
+            </span>
+          </h3>
+          <p className="text-xs text-slate-400 mt-1.5 max-w-sm text-center">
+            Attempting to restore WebRTC connection via ICE restart. Please hold on...
+          </p>
+          <div className="flex items-center space-x-3 mt-6">
+            <button
+              onClick={onRetryConnection}
+              className="px-4 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold rounded-xl transition flex items-center gap-2 shadow-md cursor-pointer"
+            >
+              <RefreshCw size={13} />
+              <span>Retry Now</span>
+            </button>
+            <button
+              onClick={onDisconnect}
+              className="px-4 py-2 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-semibold rounded-xl transition flex items-center gap-2 shadow-md cursor-pointer"
+            >
+              <Square size={12} className="fill-white" />
+              <span>End Session</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Live Whiteboard Canvas Overlay */}
       {showWhiteboard && (
         <WhiteboardOverlay
@@ -308,7 +346,11 @@ export function RemoteViewer({
           className="absolute top-0 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1 bg-[#0F172A]/95 hover:bg-[#1E293B] backdrop-blur-md border-b border-x border-[#334155] rounded-b-xl shadow-md text-slate-300 hover:text-[#818CF8] transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold animate-in slide-in-from-top-2 duration-150"
           title="Click or hover to reveal toolbar"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              connectionState === "reconnecting" ? "bg-amber-400 animate-ping" : "bg-emerald-500"
+            }`}
+          />
           <span className="truncate max-w-[140px] text-white">{targetPeerAlias || targetPeerId}</span>
           <ChevronDown size={13} className="text-slate-400" />
         </button>
@@ -332,7 +374,11 @@ export function RemoteViewer({
       >
         {/* Remote desk identifier & Alias */}
         <div className="flex items-center space-x-1.5 px-2 border-r border-[#334155] max-w-[220px]">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              connectionState === "reconnecting" ? "bg-amber-400 animate-ping" : "bg-emerald-500"
+            }`}
+          />
           {targetPeerAlias && targetPeerAlias !== targetPeerId ? (
             <div className="truncate flex items-baseline space-x-1 min-w-0">
               <span className="text-xs font-bold text-white truncate">{targetPeerAlias}</span>
@@ -342,6 +388,14 @@ export function RemoteViewer({
             <span className="text-xs font-mono font-bold text-[#818CF8]">{targetPeerId}</span>
           )}
         </div>
+
+        {/* Reconnecting Badge in Toolbar */}
+        {connectionState === "reconnecting" && (
+          <div className="flex items-center space-x-1 px-2.5 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded-full text-[10px] font-bold text-amber-300 animate-in fade-in">
+            <RefreshCw size={11} className="animate-spin" />
+            <span>Reconnecting...</span>
+          </div>
+        )}
 
         {/* View-Only Indicator if input revoked by host */}
         {!livePermissions?.control && (

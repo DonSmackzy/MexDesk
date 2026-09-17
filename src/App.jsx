@@ -159,6 +159,7 @@ export function App() {
         unreadChatCount: 0,
         isCalling: data.isCalling || false,
         connectionState: data.connectionState || "connecting",
+        reconnectAttempt: data.reconnectAttempt || 0,
         localStream: data.localStream || null,
         role: data.role || "controller", // "controller" | "host"
       },
@@ -249,6 +250,27 @@ export function App() {
         [peerId]: {
           ...session,
           permissions: updatedPerms,
+        },
+      };
+    });
+  }, []);
+
+  // Force manual reconnection attempt (ICE restart)
+  const handleRetrySession = useCallback((peerId) => {
+    setSessions((prev) => {
+      const session = prev[peerId];
+      if (!session || !session.webrtc) return prev;
+
+      const nextAttempt = (session.reconnectAttempt || 0) + 1;
+      console.log(`[AegisDesk] Manual reconnection requested for ${peerId} (Attempt ${nextAttempt})...`);
+      session.webrtc.restartIce().catch((err) => console.warn("[AegisDesk] Manual retry error:", err));
+
+      return {
+        ...prev,
+        [peerId]: {
+          ...session,
+          connectionState: "reconnecting",
+          reconnectAttempt: nextAttempt,
         },
       };
     });
@@ -367,20 +389,58 @@ export function App() {
         });
       });
 
-      let callerDisconnectTimer = null;
+      let reconnectIntervalTimer = null;
+      let reconnectHardDeadlineTimer = null;
+      let currentAttempts = 0;
+
+      const attemptRecovery = () => {
+        currentAttempts += 1;
+        console.log(`[AegisDesk] Attempting connection recovery (${currentAttempts}/5) for ${targetId}...`);
+        updateSession(targetId, {
+          connectionState: "reconnecting",
+          reconnectAttempt: currentAttempts,
+        });
+        rtc.restartIce().catch((err) => console.warn("[AegisDesk] Reconnect error:", err));
+      };
+
       rtc.on("connection-state", (state) => {
+        console.log(`[AegisDesk] Caller session state for ${targetId}:`, state);
         if (state === "connected") {
-          if (callerDisconnectTimer) {
-            clearTimeout(callerDisconnectTimer);
-            callerDisconnectTimer = null;
+          if (reconnectIntervalTimer) {
+            clearInterval(reconnectIntervalTimer);
+            reconnectIntervalTimer = null;
           }
-          updateSession(targetId, { connectionState: "connected" });
-        } else if (state === "failed" || state === "closed") {
-          if (!callerDisconnectTimer) {
-            callerDisconnectTimer = setTimeout(() => {
-              handleCloseSession(targetId, "Connection disconnected (ICE failure)");
-            }, 12000);
+          if (reconnectHardDeadlineTimer) {
+            clearTimeout(reconnectHardDeadlineTimer);
+            reconnectHardDeadlineTimer = null;
           }
+          currentAttempts = 0;
+          updateSession(targetId, {
+            connectionState: "connected",
+            reconnectAttempt: 0,
+          });
+        } else if (state === "disconnected" || state === "failed") {
+          if (!reconnectHardDeadlineTimer) {
+            attemptRecovery();
+
+            reconnectIntervalTimer = setInterval(() => {
+              if (currentAttempts < 5) {
+                attemptRecovery();
+              } else {
+                if (reconnectIntervalTimer) clearInterval(reconnectIntervalTimer);
+              }
+            }, 5000);
+
+            reconnectHardDeadlineTimer = setTimeout(() => {
+              if (reconnectIntervalTimer) clearInterval(reconnectIntervalTimer);
+              handleCloseSession(
+                targetId,
+                "Connection lost: remote desk did not respond after 5 reconnection attempts."
+              );
+            }, 30000);
+          }
+        } else if (state === "closed") {
+          handleCloseSession(targetId, "Remote desk closed connection.");
         }
       });
 
@@ -571,20 +631,58 @@ export function App() {
         });
       });
 
-      let hostDisconnectTimer = null;
+      let hostReconnectIntervalTimer = null;
+      let hostReconnectHardDeadlineTimer = null;
+      let hostAttempts = 0;
+
+      const attemptHostRecovery = () => {
+        hostAttempts += 1;
+        console.log(`[AegisDesk] Host attempting connection recovery (${hostAttempts}/5) for ${callerId}...`);
+        updateSession(callerId, {
+          connectionState: "reconnecting",
+          reconnectAttempt: hostAttempts,
+        });
+        rtc.restartIce().catch((err) => console.warn("[AegisDesk] Host reconnect error:", err));
+      };
+
       rtc.on("connection-state", (state) => {
+        console.log(`[AegisDesk] Host session state for ${callerId}:`, state);
         if (state === "connected") {
-          if (hostDisconnectTimer) {
-            clearTimeout(hostDisconnectTimer);
-            hostDisconnectTimer = null;
+          if (hostReconnectIntervalTimer) {
+            clearInterval(hostReconnectIntervalTimer);
+            hostReconnectIntervalTimer = null;
           }
-          updateSession(callerId, { connectionState: "connected" });
-        } else if (state === "failed" || state === "closed") {
-          if (!hostDisconnectTimer) {
-            hostDisconnectTimer = setTimeout(() => {
-              handleCloseSession(callerId, "Remote desk closed connection");
-            }, 12000);
+          if (hostReconnectHardDeadlineTimer) {
+            clearTimeout(hostReconnectHardDeadlineTimer);
+            hostReconnectHardDeadlineTimer = null;
           }
+          hostAttempts = 0;
+          updateSession(callerId, {
+            connectionState: "connected",
+            reconnectAttempt: 0,
+          });
+        } else if (state === "disconnected" || state === "failed") {
+          if (!hostReconnectHardDeadlineTimer) {
+            attemptHostRecovery();
+
+            hostReconnectIntervalTimer = setInterval(() => {
+              if (hostAttempts < 5) {
+                attemptHostRecovery();
+              } else {
+                if (hostReconnectIntervalTimer) clearInterval(hostReconnectIntervalTimer);
+              }
+            }, 5000);
+
+            hostReconnectHardDeadlineTimer = setTimeout(() => {
+              if (hostReconnectIntervalTimer) clearInterval(hostReconnectIntervalTimer);
+              handleCloseSession(
+                callerId,
+                "Connection lost: remote peer could not be reached after 5 recovery attempts."
+              );
+            }, 30000);
+          }
+        } else if (state === "closed") {
+          handleCloseSession(callerId, "Remote desk closed connection.");
         }
       });
 
@@ -807,6 +905,9 @@ export function App() {
               targetPeerId={peerId}
               targetPeerAlias={session.alias}
               permissions={session.permissions}
+              connectionState={session.connectionState}
+              reconnectAttempt={session.reconnectAttempt || 1}
+              onRetryConnection={() => handleRetrySession(peerId)}
               onDisconnect={() => handleCloseSession(peerId, "You ended the session.")}
               unreadChatCount={session.unreadChatCount}
               onResetChatCount={() => updateSession(peerId, { unreadChatCount: 0 })}
@@ -833,9 +934,23 @@ export function App() {
               </div>
               <div className="text-left">
                 <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#818CF8]">
-                    Active Screen Sharing Session
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      session.connectionState === "reconnecting"
+                        ? "bg-amber-400 animate-ping"
+                        : "bg-[#16A34A] animate-pulse"
+                    }`}
+                  />
+                  <span
+                    className={`text-[11px] font-bold uppercase tracking-wider ${
+                      session.connectionState === "reconnecting"
+                        ? "text-amber-300"
+                        : "text-[#818CF8]"
+                    }`}
+                  >
+                    {session.connectionState === "reconnecting"
+                      ? `Reconnecting (Attempt ${session.reconnectAttempt || 1} of 5)...`
+                      : "Active Screen Sharing Session"}
                   </span>
                 </div>
                 <h2 className="text-sm font-bold text-white">
@@ -846,6 +961,33 @@ export function App() {
                 </h2>
               </div>
             </div>
+
+            {/* Reconnecting Banner for Host */}
+            {session.connectionState === "reconnecting" && (
+              <div className="w-full bg-amber-500/15 border border-amber-500/40 rounded-2xl p-4 shadow-xl flex items-center justify-between text-left animate-in fade-in duration-200">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                    <RefreshCw size={18} className="text-amber-400 animate-spin" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-300">
+                      Connection Interrupted — Reconnecting (Attempt {session.reconnectAttempt || 1} of 5)...
+                    </h4>
+                    <p className="text-[11px] text-amber-200/80 mt-0.5">
+                      Network disruption detected. Negotiating ICE restart with peer.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRetrySession(peerId)}
+                  className="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <RefreshCw size={13} />
+                  <span>Retry Now</span>
+                </button>
+              </div>
+            )}
 
             {/* In-Session Granular Permission Controls */}
             <div className="w-full bg-[#1E293B] border border-[#334155] rounded-2xl p-5 shadow-2xl space-y-4 text-left">

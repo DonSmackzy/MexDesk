@@ -134,6 +134,9 @@ export class SignalingClient {
       case "ice-candidate":
         this.trigger("ice-candidate", msg);
         break;
+      case "ice-restart-request":
+        this.trigger("ice-restart-request", msg);
+        break;
       case "session-ended":
       case "peer-disconnected":
         this.trigger("session-ended", msg);
@@ -182,6 +185,10 @@ export class SignalingClient {
 
   sendIceCandidate(targetId, candidate) {
     this.send({ type: "ice-candidate", targetId, candidate });
+  }
+
+  requestIceRestart(targetId) {
+    this.send({ type: "ice-restart-request", targetId });
   }
 
   hangup() {

@@ -875,6 +875,20 @@ function handleMessage(ws, msg) {
         break;
       }
 
+      case "ice-restart-request": {
+        const senderId = socketToPeerId.get(ws);
+        const targetId = normalizeId(msg.targetId);
+        const sender = peers.get(senderId);
+
+        if (sender && sender.sessionWith === targetId) {
+          sendToPeer(targetId, {
+            type: "ice-restart-request",
+            senderId
+          });
+        }
+        break;
+      }
+
       case "hangup": {
         const senderId = socketToPeerId.get(ws);
         const sender = peers.get(senderId);

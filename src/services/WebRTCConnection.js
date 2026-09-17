@@ -133,15 +133,21 @@ export class WebRTCConnection {
     this.peerConnection.oniceconnectionstatechange = () => {
       const iceState = this.peerConnection.iceConnectionState;
       console.log(`[WebRTC] ICE Connection state: ${iceState}`);
+      this.trigger("ice-connection-state", iceState);
       if (iceState === "failed") {
-        if (typeof this.peerConnection.restartIce === "function") {
-          try {
-            console.log("[WebRTC] Restarting ICE negotiation...");
-            this.peerConnection.restartIce();
-          } catch (e) {}
-        }
+        this.restartIce().catch((err) => console.warn("[WebRTC] Auto restartIce failed:", err));
       }
     };
+
+    // Listen for peer ice-restart-request over signaling
+    if (this.signaling) {
+      this.signaling.on("ice-restart-request", async (msg) => {
+        if (msg.senderId === this.targetPeerId && this.isInitiator) {
+          console.log(`[WebRTC] Peer requested ICE restart, renewing offer...`);
+          await this.restartIce();
+        }
+      });
+    }
 
     // If initiator, create data channels
     if (this.isInitiator) {
@@ -196,11 +202,35 @@ export class WebRTCConnection {
     };
   }
 
-  async createOffer() {
+  async createOffer(options = {}) {
     if (!this.peerConnection) return;
-    const offer = await this.peerConnection.createOffer();
-    await this.peerConnection.setLocalDescription(offer);
-    this.signaling.sendOffer(this.targetPeerId, offer);
+    try {
+      const offer = await this.peerConnection.createOffer(options);
+      await this.peerConnection.setLocalDescription(offer);
+      this.signaling.sendOffer(this.targetPeerId, offer);
+    } catch (err) {
+      console.error("[WebRTC] createOffer error:", err);
+    }
+  }
+
+  async restartIce() {
+    if (!this.peerConnection) return;
+    try {
+      console.log(`[WebRTC] Initiating ICE restart for ${this.targetPeerId}...`);
+      if (this.isInitiator) {
+        if (typeof this.peerConnection.restartIce === "function") {
+          this.peerConnection.restartIce();
+        }
+        await this.createOffer({ iceRestart: true });
+      } else {
+        // Notify initiator to create an iceRestart offer
+        if (this.signaling?.requestIceRestart) {
+          this.signaling.requestIceRestart(this.targetPeerId);
+        }
+      }
+    } catch (err) {
+      console.error("[WebRTC] restartIce error:", err);
+    }
   }
 
   async handleOffer(offer) {
