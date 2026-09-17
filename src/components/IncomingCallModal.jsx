@@ -49,14 +49,14 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        {/* Top Header Banner - AnyDesk Style Connection Authorization Header */}
-        <div className="bg-gradient-to-r from-aegis-red to-aegis-crimson p-5 text-white flex items-center justify-between">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#1E293B] rounded-2xl border border-[#334155] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {/* Top Header Banner */}
+        <div className="bg-gradient-to-r from-[#4F46E5] to-[#4338CA] p-5 text-white flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center relative">
               <Monitor size={22} className="text-white" />
-              <ShieldCheck size={12} className="text-emerald-300 absolute -bottom-1 -right-1 bg-aegis-crimson rounded-full" />
+              <ShieldCheck size={12} className="text-emerald-300 absolute -bottom-1 -right-1 bg-[#4338CA] rounded-full" />
             </div>
             <div>
               <span className="text-xs uppercase tracking-wider font-semibold opacity-80">
@@ -69,19 +69,19 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
 
         <div className="p-5 space-y-4">
           {/* Caller Details Card */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-center">
+          <div className="bg-[#0F172A] border border-[#334155] rounded-xl p-4 text-center">
             <span className="text-xs text-slate-400 block mb-1 font-medium">Connecting ID</span>
-            <div className="text-2xl font-mono font-bold text-slate-800 tracking-wider">
+            <div className="text-2xl font-mono font-bold text-[#818CF8] tracking-wider">
               {callData?.callerId || "Unknown"}
             </div>
-            <span className="text-xs text-slate-500 font-medium mt-0.5 block">
+            <span className="text-xs text-slate-300 font-medium mt-0.5 block">
               {callData?.callerAlias || "Remote User"}
             </span>
           </div>
 
           {/* Granular Permissions */}
           <div>
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">
               Permissions Granted
             </span>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -89,11 +89,11 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                 onClick={() => togglePermission("control")}
                 className={`flex items-center space-x-2 p-2.5 rounded-lg border cursor-pointer select-none transition ${
                   permissions.control
-                    ? "bg-rose-50 border-rose-200 text-slate-800"
-                    : "bg-slate-50 border-slate-200 text-slate-400"
+                    ? "bg-[#4F46E5]/15 border-[#4F46E5]/40 text-white"
+                    : "bg-[#0F172A] border-[#334155] text-slate-400"
                 }`}
               >
-                <MousePointer size={15} className={permissions.control ? "text-aegis-red" : "text-slate-400"} />
+                <MousePointer size={15} className={permissions.control ? "text-[#818CF8]" : "text-slate-500"} />
                 <span className="font-medium">Control Input</span>
               </label>
 
@@ -101,11 +101,11 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                 onClick={() => togglePermission("fileTransfer")}
                 className={`flex items-center space-x-2 p-2.5 rounded-lg border cursor-pointer select-none transition ${
                   permissions.fileTransfer
-                    ? "bg-rose-50 border-rose-200 text-slate-800"
-                    : "bg-slate-50 border-slate-200 text-slate-400"
+                    ? "bg-[#4F46E5]/15 border-[#4F46E5]/40 text-white"
+                    : "bg-[#0F172A] border-[#334155] text-slate-400"
                 }`}
               >
-                <FolderSync size={15} className={permissions.fileTransfer ? "text-aegis-red" : "text-slate-400"} />
+                <FolderSync size={15} className={permissions.fileTransfer ? "text-[#818CF8]" : "text-slate-500"} />
                 <span className="font-medium">File Transfer</span>
               </label>
 
@@ -113,11 +113,11 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                 onClick={() => togglePermission("clipboard")}
                 className={`flex items-center space-x-2 p-2.5 rounded-lg border cursor-pointer select-none transition ${
                   permissions.clipboard
-                    ? "bg-rose-50 border-rose-200 text-slate-800"
-                    : "bg-slate-50 border-slate-200 text-slate-400"
+                    ? "bg-[#4F46E5]/15 border-[#4F46E5]/40 text-white"
+                    : "bg-[#0F172A] border-[#334155] text-slate-400"
                 }`}
               >
-                <Clipboard size={15} className={permissions.clipboard ? "text-aegis-red" : "text-slate-400"} />
+                <Clipboard size={15} className={permissions.clipboard ? "text-[#818CF8]" : "text-slate-500"} />
                 <span className="font-medium">Sync Clipboard</span>
               </label>
 
@@ -125,18 +125,18 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
                 onClick={() => togglePermission("audio")}
                 className={`flex items-center space-x-2 p-2.5 rounded-lg border cursor-pointer select-none transition ${
                   permissions.audio
-                    ? "bg-rose-50 border-rose-200 text-slate-800"
-                    : "bg-slate-50 border-slate-200 text-slate-400"
+                    ? "bg-[#4F46E5]/15 border-[#4F46E5]/40 text-white"
+                    : "bg-[#0F172A] border-[#334155] text-slate-400"
                 }`}
               >
-                <Volume2 size={15} className={permissions.audio ? "text-aegis-red" : "text-slate-400"} />
+                <Volume2 size={15} className={permissions.audio ? "text-[#818CF8]" : "text-slate-500"} />
                 <span className="font-medium">Transmit Audio</span>
               </label>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
-            <ShieldAlert size={14} className="shrink-0 text-amber-600" />
+          <div className="flex items-center space-x-2 text-[11px] text-amber-300 bg-amber-950/30 border border-amber-800/60 p-2.5 rounded-lg">
+            <ShieldAlert size={14} className="shrink-0 text-amber-400" />
             <span>Only accept connections from people and devices you trust.</span>
           </div>
 
@@ -144,7 +144,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
           <div className="grid grid-cols-2 gap-3 pt-2">
             <button
               onClick={() => onAccept(permissions)}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#16A34A] hover:bg-[#15803D] active:bg-green-800 text-white font-semibold text-sm rounded-xl shadow-md shadow-green-900/20 transition cursor-pointer"
             >
               <Check size={18} />
               <span>Accept</span>
@@ -152,7 +152,7 @@ export function IncomingCallModal({ callData, onAccept, onReject }) {
 
             <button
               onClick={() => onReject("Rejected by user")}
-              className="flex items-center justify-center space-x-2 px-4 py-3 bg-aegis-red hover:bg-aegis-crimson active:bg-aegis-darkred text-white font-semibold text-sm rounded-xl shadow-md shadow-red-500/20 transition cursor-pointer"
+              className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#EF4444] hover:bg-[#DC2626] active:bg-red-800 text-white font-semibold text-sm rounded-xl shadow-md shadow-red-900/20 transition cursor-pointer"
             >
               <X size={18} />
               <span>Dismiss</span>

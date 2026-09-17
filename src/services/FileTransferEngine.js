@@ -1,6 +1,13 @@
 // FileTransferEngine.js - Chunked binary file transfer over WebRTC DataChannel
 
 const CHUNK_SIZE = 64 * 1024; // 64 KB chunks
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB memory bound (DoS prevention)
+
+function sanitizeFileName(rawName) {
+  if (typeof rawName !== "string") return "downloaded_file";
+  const baseName = rawName.split(/[/\\]/).pop();
+  return baseName.replace(/[/\\?%*:|"<>]/g, "_").replace(/^\.+/, "").trim() || "downloaded_file";
+}
 
 export class FileTransferEngine {
   constructor(webrtc) {
@@ -17,12 +24,19 @@ export class FileTransferEngine {
 
   // Send a File or Blob
   async sendFile(file) {
+    if (!file || typeof file.size !== "number") {
+      throw new Error("Invalid file object.");
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`File size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds maximum allowed size of 500 MB.`);
+    }
+
     const fileId = "fx_" + Math.random().toString(36).substr(2, 9);
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     const task = {
       id: fileId,
-      name: file.name,
+      name: sanitizeFileName(file.name),
       size: file.size,
       mimeType: file.type || "application/octet-stream",
       file,
@@ -125,12 +139,30 @@ export class FileTransferEngine {
   }
 
   handleControlMessage(msg) {
+    if (!msg || typeof msg !== "object") return;
+
     if (msg.type === "file-start") {
+      // Security check (SEC-05): validate size bounds and data types
+      if (!msg.id || typeof msg.size !== "number" || msg.size <= 0 || msg.size > MAX_FILE_SIZE) {
+        console.warn(`[FileTransferEngine] Rejected invalid/oversized file transfer (id: ${msg.id}, size: ${msg.size})`);
+        this.trigger("transfer-error", {
+          id: msg.id,
+          name: msg.name,
+          message: msg.size > MAX_FILE_SIZE
+            ? `File exceeds maximum allowed size (${(msg.size / (1024 * 1024)).toFixed(1)} MB > 500 MB).`
+            : "Invalid file transfer header parameters.",
+        });
+        return;
+      }
+
+      // Security check (SEC-06): sanitize incoming remote file name
+      const safeName = sanitizeFileName(msg.name);
+
       this.receivingFiles.set(msg.id, {
         id: msg.id,
-        name: msg.name,
+        name: safeName,
         size: msg.size,
-        mimeType: msg.mimeType,
+        mimeType: msg.mimeType || "application/octet-stream",
         totalChunks: msg.totalChunks,
         receivedBytes: 0,
         chunks: [],
@@ -140,7 +172,7 @@ export class FileTransferEngine {
       this.trigger("transfer-started", {
         id: msg.id,
         direction: "download",
-        name: msg.name,
+        name: safeName,
         size: msg.size,
       });
     } else if (msg.type === "file-end") {
@@ -153,8 +185,14 @@ export class FileTransferEngine {
           name: fileData.name,
           blob,
         });
+        fileData.chunks = []; // Explicitly free memory
         this.receivingFiles.delete(msg.id);
+        if (this.currentIncomingId === msg.id) {
+          this.currentIncomingId = null;
+        }
       }
+    } else if (msg.type === "file-cancel" || msg.type === "file-error") {
+      this.cancelTransfer(msg.id);
     }
   }
 
@@ -162,6 +200,20 @@ export class FileTransferEngine {
     if (!this.currentIncomingId) return;
     const fileData = this.receivingFiles.get(this.currentIncomingId);
     if (!fileData) return;
+
+    // Security check (SEC-05): enforce strict chunk byte boundary to prevent memory exhaustion
+    if (fileData.receivedBytes + arrayBuffer.byteLength > fileData.size) {
+      console.warn(`[FileTransferEngine] Transfer for ${fileData.id} exceeded declared file size (${fileData.size} bytes). Aborting.`);
+      const badId = this.currentIncomingId;
+      const fileName = fileData.name;
+      this.cancelTransfer(badId);
+      this.trigger("transfer-error", {
+        id: badId,
+        name: fileName,
+        message: "File transfer aborted: incoming data exceeded declared size.",
+      });
+      return;
+    }
 
     fileData.chunks.push(arrayBuffer);
     fileData.receivedBytes += arrayBuffer.byteLength;
@@ -175,6 +227,18 @@ export class FileTransferEngine {
       total: fileData.size,
       progress,
     });
+  }
+
+  cancelTransfer(fileId) {
+    const fileData = this.receivingFiles.get(fileId);
+    if (fileData) {
+      fileData.chunks = []; // Release chunk memory buffer immediately
+      this.receivingFiles.delete(fileId);
+    }
+    if (this.currentIncomingId === fileId) {
+      this.currentIncomingId = null;
+    }
+    this.sendingQueue = this.sendingQueue.filter((t) => t.id !== fileId);
   }
 
   on(event, callback) {

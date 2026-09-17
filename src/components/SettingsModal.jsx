@@ -64,25 +64,25 @@ export function SettingsModal({
   const tabClass = (tab) =>
     `w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
       activeTab === tab
-        ? "bg-[#FEE2E2] text-[#DC2626] border border-red-100"
-        : "text-slate-600 hover:bg-slate-100"
+        ? "bg-[#4F46E5]/15 text-[#818CF8] border border-[#4F46E5]/30"
+        : "text-slate-400 hover:bg-[#1E293B] hover:text-slate-200"
     }`;
 
-  const inputFocusClass = "focus:outline-none focus:ring-2 focus:ring-[#DC2626]/30 focus:border-[#DC2626]";
-  const btnPrimaryClass = "px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-semibold rounded-lg shadow-sm transition";
+  const inputFocusClass = "focus:outline-none focus:ring-2 focus:ring-[#818CF8]/30 focus:border-[#818CF8]";
+  const btnPrimaryClass = "px-4 py-2 bg-[#818CF8] hover:bg-[#6366F1] text-slate-950 text-xs font-bold rounded-lg shadow-sm transition";
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl h-[520px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#1E293B] rounded-2xl border border-[#334155] shadow-2xl w-full max-w-2xl h-[520px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="p-4 border-b border-[#334155] flex items-center justify-between bg-[#0F172A]">
           <div className="flex items-center space-x-2">
             <AegisLogo size={28} />
-            <h2 className="text-sm font-bold text-slate-800">AegisDesk Settings</h2>
+            <h2 className="text-sm font-bold text-white">MexDesk Settings</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition"
+            className="p-1.5 rounded-lg hover:bg-[#334155] text-slate-400 hover:text-white transition"
           >
             <X size={18} />
           </button>
@@ -90,7 +90,7 @@ export function SettingsModal({
 
         <div className="flex-1 flex overflow-hidden">
           {/* Left Navigation */}
-          <div className="w-48 bg-slate-50 border-r border-slate-200 p-2 space-y-1">
+          <div className="w-48 bg-[#0F172A] border-r border-[#334155] p-2 space-y-1">
             <button onClick={() => setActiveTab("security")} className={tabClass("security")}>
               <Lock size={15} />
               <span>Security</span>
@@ -118,9 +118,9 @@ export function SettingsModal({
           </div>
 
           {/* Right Content */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 p-6 overflow-y-auto bg-[#1E293B]">
             {savedMessage && (
-              <div className="mb-4 p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg flex items-center space-x-2">
+              <div className="mb-4 p-2.5 bg-emerald-950/40 border border-emerald-800 text-emerald-400 text-xs rounded-lg flex items-center space-x-2">
                 <Check size={14} />
                 <span>{savedMessage}</span>
               </div>
@@ -130,18 +130,18 @@ export function SettingsModal({
             {activeTab === "security" && (
               <form onSubmit={handleSaveSecurity} className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-1.5">
-                    <KeyRound size={16} className="text-[#DC2626]" />
+                  <h3 className="text-sm font-bold text-white flex items-center space-x-1.5">
+                    <KeyRound size={16} className="text-[#818CF8]" />
                     <span>Unattended Access</span>
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Allow connections without physical confirmation by setting an access password.
                   </p>
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
                       Access Password
                     </label>
                     <input
@@ -149,14 +149,14 @@ export function SettingsModal({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Leave blank to disable unattended access"
-                      className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 ${inputFocusClass}`}
+                      className={`w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 ${inputFocusClass}`}
                     />
                   </div>
 
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center space-x-2.5">
-                    <Shield size={16} className="text-emerald-600 shrink-0" />
-                    <div className="text-[11px] text-slate-600 leading-snug">
-                      <strong className="text-slate-800 font-semibold block">Cryptographic Protection Active</strong>
+                  <div className="p-3 bg-[#0F172A] border border-[#334155] rounded-xl flex items-center space-x-2.5">
+                    <Shield size={16} className="text-emerald-400 shrink-0" />
+                    <div className="text-[11px] text-slate-400 leading-snug">
+                      <strong className="text-white font-semibold block">Cryptographic Protection Active</strong>
                       Passwords are salt-hashed with scrypt and protected by automated 60s lockout after 5 failed attempts.
                     </div>
                   </div>
@@ -172,40 +172,40 @@ export function SettingsModal({
             {activeTab === "display" && (
               <form onSubmit={handleSaveDisplay} className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Display Quality & Rendering</h3>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <h3 className="text-sm font-bold text-white">Display Quality & Rendering</h3>
+                  <p className="text-xs text-slate-400 mt-1">
                     Fine-tune the video stream frame rate limit and rendering priority.
                   </p>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
                       Refresh Rate Limit
                     </label>
                     <select
                       value={fpsLimit}
                       onChange={(e) => setFpsLimit(e.target.value)}
-                      className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 ${inputFocusClass}`}
+                      className={`w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white ${inputFocusClass}`}
                     >
-                      <option value="60">60 FPS (Ultra Smooth - High Bandwidth)</option>
-                      <option value="30">30 FPS (Balanced Bandwidth)</option>
-                      <option value="15">15 FPS (Low Bandwidth Saver)</option>
+                      <option value="60" className="bg-[#0F172A] text-white">60 FPS (Ultra Smooth - High Bandwidth)</option>
+                      <option value="30" className="bg-[#0F172A] text-white">30 FPS (Balanced Bandwidth)</option>
+                      <option value="15" className="bg-[#0F172A] text-white">15 FPS (Low Bandwidth Saver)</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
                       Quality Profile
                     </label>
                     <select
                       value={qualityProfile}
                       onChange={(e) => setQualityProfile(e.target.value)}
-                      className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 ${inputFocusClass}`}
+                      className={`w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white ${inputFocusClass}`}
                     >
-                      <option value="adaptive">Adaptive (Auto-balance bitrate and latency)</option>
-                      <option value="crisp">Crisp Text (Optimized for documents and code)</option>
-                      <option value="latency">Low Latency (Fastest mouse response)</option>
+                      <option value="adaptive" className="bg-[#0F172A] text-white">Adaptive (Auto-balance bitrate and latency)</option>
+                      <option value="crisp" className="bg-[#0F172A] text-white">Crisp Text (Optimized for documents and code)</option>
+                      <option value="latency" className="bg-[#0F172A] text-white">Low Latency (Fastest mouse response)</option>
                     </select>
                   </div>
                 </div>
@@ -220,41 +220,41 @@ export function SettingsModal({
             {activeTab === "network" && (
               <form onSubmit={handleSaveNetwork} className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-1.5">
-                    <Server size={16} className="text-[#DC2626]" />
+                  <h3 className="text-sm font-bold text-white flex items-center space-x-1.5">
+                    <Server size={16} className="text-[#818CF8]" />
                     <span>Signaling & Relay Server</span>
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Configure the WebSocket signaling endpoint used to route connections.
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
                     WebSocket Server URL
                   </label>
                   <input
                     type="text"
                     value={serverUrl}
                     onChange={(e) => setServerUrl(e.target.value)}
-                    className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 ${inputFocusClass}`}
+                    className={`w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs font-mono text-white ${inputFocusClass}`}
                   />
                 </div>
 
-                <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                <div className="p-3 bg-[#0F172A] border border-[#334155] rounded-xl space-y-1">
                   <label className="flex items-center space-x-2.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={allowDiscovery}
                       onChange={(e) => setAllowDiscovery(e.target.checked)}
-                      className="w-4 h-4 text-[#DC2626] rounded border-slate-300 focus:ring-[#DC2626]"
+                      className="w-4 h-4 text-[#4F46E5] rounded border-slate-600 bg-[#1E293B] focus:ring-[#4F46E5]"
                     />
-                    <span className="text-xs font-semibold text-slate-800">
+                    <span className="text-xs font-semibold text-white">
                       Allow LAN Discovery
                     </span>
                   </label>
-                  <p className="text-[11px] text-slate-500 pl-6.5">
-                    Allow other computers running AegisDesk on the same local network / WiFi to discover this desk.
+                  <p className="text-[11px] text-slate-400 pl-6.5">
+                    Allow other computers running MexDesk on the same local network / WiFi to discover this desk.
                   </p>
                 </div>
 
@@ -268,17 +268,17 @@ export function SettingsModal({
             {activeTab === "updates" && (
               <div className="space-y-5">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-1.5">
-                    <Download size={16} className="text-[#DC2626]" />
+                  <h3 className="text-sm font-bold text-white flex items-center space-x-1.5">
+                    <Download size={16} className="text-[#818CF8]" />
                     <span>Update Preferences</span>
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Choose how AegisDesk handles new version updates.
+                  <p className="text-xs text-slate-400 mt-1">
+                    Choose how MexDesk handles new version updates.
                   </p>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="flex items-start space-x-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition">
+                  <label className="flex items-start space-x-3 p-3 rounded-xl border border-[#334155] bg-[#0F172A] cursor-pointer hover:border-slate-500 transition">
                     <input
                       type="radio"
                       name="updatePref"
@@ -290,17 +290,17 @@ export function SettingsModal({
                         setSavedMessage("Update preference saved!");
                         setTimeout(() => setSavedMessage(""), 2500);
                       }}
-                      className="mt-0.5 text-[#DC2626] focus:ring-[#DC2626]"
+                      className="mt-0.5 text-[#4F46E5] focus:ring-[#4F46E5]"
                     />
                     <div>
-                      <span className="text-xs font-semibold text-slate-800 block">Automatically apply updates</span>
-                      <span className="text-[11px] text-slate-500">
+                      <span className="text-xs font-semibold text-white block">Automatically apply updates</span>
+                      <span className="text-[11px] text-slate-400">
                         Updates are applied silently when the app reloads. No action needed from you.
                       </span>
                     </div>
                   </label>
 
-                  <label className="flex items-start space-x-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition">
+                  <label className="flex items-start space-x-3 p-3 rounded-xl border border-[#334155] bg-[#0F172A] cursor-pointer hover:border-slate-500 transition">
                     <input
                       type="radio"
                       name="updatePref"
@@ -312,20 +312,20 @@ export function SettingsModal({
                         setSavedMessage("Update preference saved!");
                         setTimeout(() => setSavedMessage(""), 2500);
                       }}
-                      className="mt-0.5 text-[#DC2626] focus:ring-[#DC2626]"
+                      className="mt-0.5 text-[#4F46E5] focus:ring-[#4F46E5]"
                     />
                     <div>
-                      <span className="text-xs font-semibold text-slate-800 block">Prompt before updating</span>
-                      <span className="text-[11px] text-slate-500">
+                      <span className="text-xs font-semibold text-white block">Prompt before updating</span>
+                      <span className="text-[11px] text-slate-400">
                         A banner will appear when a new version is available, letting you choose when to update.
                       </span>
                     </div>
                   </label>
                 </div>
 
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                  <p className="text-[11px] text-slate-500">
-                    AegisDesk loads the latest UI from the cloud on each launch. Updates affect the web-layer interface. The desktop shell updates separately via new executable downloads.
+                <div className="p-3 bg-[#0F172A] border border-[#334155] rounded-xl">
+                  <p className="text-[11px] text-slate-400">
+                    MexDesk loads the latest UI from the cloud on each launch. Updates affect the web-layer interface. The desktop shell updates separately via new executable downloads.
                   </p>
                 </div>
               </div>
@@ -337,17 +337,17 @@ export function SettingsModal({
                 <div className="flex items-center space-x-3">
                   <AegisLogo size={48} />
                   <div>
-                    <h3 className="text-base font-bold text-slate-800">AegisDesk</h3>
-                    <p className="text-xs text-slate-500">Version 1.1.0 (Enterprise Edition)</p>
+                    <h3 className="text-base font-bold text-white">MexDesk</h3>
+                    <p className="text-xs text-slate-400">Version 1.1.0</p>
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-2">
+                <div className="p-4 bg-[#0F172A] rounded-xl border border-[#334155] text-xs text-slate-300 space-y-2">
                   <p>
-                    <strong>AegisDesk</strong> is an enterprise-grade remote desktop solution built on high-performance
+                    <strong className="text-white">MexDesk</strong> is a high-performance remote desktop solution built on
                     WebRTC peer-to-peer streaming, React 18, and Electron.
                   </p>
-                  <ul className="list-disc list-inside text-slate-500 space-y-1">
+                  <ul className="list-disc list-inside text-slate-400 space-y-1">
                     <li>End-to-End DTLS/SRTP Encryption</li>
                     <li>Sub-30ms Video Latency</li>
                     <li>Multi-Session Concurrent Connections</li>

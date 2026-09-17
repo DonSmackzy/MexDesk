@@ -272,16 +272,16 @@ export function RemoteViewer({
             setIsToolbarHidden(false);
             resetHideTimer();
           }}
-          className="absolute top-0 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1 bg-white/95 hover:bg-white backdrop-blur-md border-b border-x border-slate-200/90 rounded-b-xl shadow-md text-slate-700 hover:text-aegis-red transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold animate-in slide-in-from-top-2 duration-150"
+          className="absolute top-0 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1 bg-[#0F172A]/95 hover:bg-[#1E293B] backdrop-blur-md border-b border-x border-[#334155] rounded-b-xl shadow-md text-slate-300 hover:text-[#818CF8] transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-semibold animate-in slide-in-from-top-2 duration-150"
           title="Click or hover to reveal toolbar"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          <span className="truncate max-w-[140px]">{targetPeerAlias || targetPeerId}</span>
+          <span className="truncate max-w-[140px] text-white">{targetPeerAlias || targetPeerId}</span>
           <ChevronDown size={13} className="text-slate-400" />
         </button>
       )}
 
-      {/* ANYDESK FLOATING TOOLBAR */}
+      {/* FLOATING TOOLBAR */}
       <div
         onMouseEnter={() => {
           setIsToolbarHovered(true);
@@ -291,22 +291,22 @@ export function RemoteViewer({
           setIsToolbarHovered(false);
           resetHideTimer();
         }}
-        className={`absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full px-2.5 py-1.5 shadow-floating text-slate-700 space-x-1 transition-all duration-300 transform ${
+        className={`absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center bg-[#0F172A]/95 backdrop-blur-md border border-[#334155] rounded-full px-2.5 py-1.5 shadow-floating text-slate-200 space-x-1 transition-all duration-300 transform ${
           isToolbarHidden
             ? "-translate-y-16 opacity-0 pointer-events-none"
             : "translate-y-0 opacity-100 pointer-events-auto"
         }`}
       >
         {/* Remote desk identifier & Alias */}
-        <div className="flex items-center space-x-1.5 px-2 border-r border-slate-200 max-w-[220px]">
+        <div className="flex items-center space-x-1.5 px-2 border-r border-[#334155] max-w-[220px]">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
           {targetPeerAlias && targetPeerAlias !== targetPeerId ? (
             <div className="truncate flex items-baseline space-x-1 min-w-0">
-              <span className="text-xs font-bold text-slate-800 truncate">{targetPeerAlias}</span>
-              <span className="text-[10px] font-mono text-slate-400 shrink-0">({targetPeerId})</span>
+              <span className="text-xs font-bold text-white truncate">{targetPeerAlias}</span>
+              <span className="text-[10px] font-mono text-[#818CF8] shrink-0">({targetPeerId})</span>
             </div>
           ) : (
-            <span className="text-xs font-mono font-bold text-slate-800">{targetPeerId}</span>
+            <span className="text-xs font-mono font-bold text-[#818CF8]">{targetPeerId}</span>
           )}
         </div>
 
@@ -315,7 +315,7 @@ export function RemoteViewer({
           onClick={() =>
             setScaleMode((prev) => (prev === "fit" ? "stretch" : prev === "stretch" ? "original" : "fit"))
           }
-          className="p-1.5 rounded-full hover:bg-slate-100 transition text-slate-600 hover:text-slate-900"
+          className="p-1.5 rounded-full hover:bg-[#1E293B] transition text-slate-300 hover:text-white"
           title={`Scale: ${scaleMode}`}
         >
           <Monitor size={15} />
@@ -325,7 +325,7 @@ export function RemoteViewer({
         <div className="relative">
           <button
             onClick={() => setShowActionsDropdown(!showActionsDropdown)}
-            className="flex items-center space-x-0.5 p-1.5 rounded-full hover:bg-slate-100 transition text-slate-600 hover:text-slate-900"
+            className="flex items-center space-x-0.5 p-1.5 rounded-full hover:bg-[#1E293B] transition text-slate-300 hover:text-white"
             title="Special Keys & Actions"
           >
             <Command size={15} />
@@ -333,16 +333,16 @@ export function RemoteViewer({
           </button>
 
           {showActionsDropdown && (
-            <div className="absolute top-full mt-2 left-0 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 w-44 z-50 text-xs font-medium text-slate-700 space-y-0.5">
+            <div className="absolute top-full mt-2 left-0 bg-[#1E293B] border border-[#334155] rounded-xl shadow-xl p-1.5 w-44 z-50 text-xs font-medium text-slate-200 space-y-0.5">
               <button
                 onClick={() => sendShortcut("ctrl_alt_del")}
-                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-rose-50 hover:text-aegis-red transition"
+                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-[#334155] hover:text-white transition"
               >
                 Send Ctrl + Alt + Del
               </button>
               <button
                 onClick={() => sendShortcut("alt_tab")}
-                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-100 transition"
+                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-[#334155] hover:text-white transition"
               >
                 Send Alt + Tab
               </button>
@@ -351,7 +351,7 @@ export function RemoteViewer({
                   setPrivacyMode(!privacyMode);
                   setShowActionsDropdown(false);
                 }}
-                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-100 transition flex items-center justify-between"
+                className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-[#334155] hover:text-white transition flex items-center justify-between"
               >
                 <span>Privacy Screen</span>
                 <span className="text-[10px] text-slate-400">{privacyMode ? "ON" : "OFF"}</span>
@@ -365,8 +365,8 @@ export function RemoteViewer({
           onClick={() => setShowWhiteboard(!showWhiteboard)}
           className={`p-1.5 rounded-full transition ${
             showWhiteboard
-              ? "bg-aegis-red text-white"
-              : "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
+              ? "bg-[#4F46E5] text-white"
+              : "hover:bg-[#1E293B] text-slate-300 hover:text-white"
           }`}
           title="Whiteboard & Annotation"
         >
@@ -379,7 +379,7 @@ export function RemoteViewer({
           className={`flex items-center space-x-1 px-2.5 py-1 rounded-full transition text-xs font-semibold ${
             isRecording
               ? "bg-rose-600 text-white animate-record"
-              : "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
+              : "hover:bg-[#1E293B] text-slate-300 hover:text-white"
           }`}
           title="Record Session"
         >
@@ -391,7 +391,7 @@ export function RemoteViewer({
         {permissions.fileTransfer && (
           <button
             onClick={() => setShowFileTransfer(true)}
-            className="p-1.5 rounded-full hover:bg-slate-100 transition text-slate-600 hover:text-slate-900"
+            className="p-1.5 rounded-full hover:bg-[#1E293B] transition text-slate-300 hover:text-white"
             title="File Transfer"
           >
             <FolderSync size={15} />
@@ -404,12 +404,12 @@ export function RemoteViewer({
             setShowChat(!showChat);
             if (!showChat && onResetChatCount) onResetChatCount();
           }}
-          className="relative p-1.5 rounded-full hover:bg-slate-100 transition text-slate-600 hover:text-slate-900"
+          className="relative p-1.5 rounded-full hover:bg-[#1E293B] transition text-slate-300 hover:text-white"
           title="Chat"
         >
           <MessageSquare size={15} />
           {unreadChatCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-aegis-red text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#EF4444] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
               {unreadChatCount}
             </span>
           )}
@@ -418,7 +418,7 @@ export function RemoteViewer({
         {/* Fullscreen */}
         <button
           onClick={toggleFullscreen}
-          className="p-1.5 rounded-full hover:bg-slate-100 transition text-slate-600 hover:text-slate-900"
+          className="p-1.5 rounded-full hover:bg-[#1E293B] transition text-slate-300 hover:text-white"
           title="Fullscreen"
         >
           {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
@@ -428,7 +428,7 @@ export function RemoteViewer({
         <button
           onClick={() => setShowStats(!showStats)}
           className={`p-1.5 rounded-full transition ${
-            showStats ? "text-aegis-red bg-rose-50" : "text-slate-400 hover:bg-slate-100"
+            showStats ? "text-[#818CF8] bg-[#4F46E5]/20" : "text-slate-400 hover:bg-[#1E293B] hover:text-white"
           }`}
           title="Toggle Stream Statistics"
         >
@@ -448,7 +448,7 @@ export function RemoteViewer({
             }
           }}
           className={`p-1.5 rounded-full transition ${
-            isToolbarPinned ? "text-aegis-red bg-rose-50" : "text-slate-400 hover:bg-slate-100"
+            isToolbarPinned ? "text-[#818CF8] bg-[#4F46E5]/20" : "text-slate-400 hover:bg-[#1E293B] hover:text-white"
           }`}
           title={isToolbarPinned ? "Toolbar pinned (always visible)" : "Pin toolbar (stop auto-hide)"}
         >
@@ -458,18 +458,18 @@ export function RemoteViewer({
         {/* Quick Collapse Button */}
         <button
           onClick={() => setIsToolbarHidden(true)}
-          className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+          className="p-1.5 rounded-full text-slate-400 hover:bg-[#1E293B] hover:text-slate-200 transition"
           title="Collapse toolbar (hover top edge to reveal)"
         >
           <ChevronUp size={15} />
         </button>
 
-        <div className="h-4 w-px bg-slate-200"></div>
+        <div className="h-4 w-px bg-[#334155]"></div>
 
-        {/* AnyDesk Iconic Red Disconnect Button */}
+        {/* Destructive Disconnect Button */}
         <button
           onClick={onDisconnect}
-          className="flex items-center space-x-1 px-3 py-1 bg-aegis-red hover:bg-aegis-crimson text-white text-xs font-semibold rounded-full shadow-sm transition cursor-pointer"
+          className="flex items-center space-x-1 px-3 py-1 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-semibold rounded-full shadow-sm transition cursor-pointer"
         >
           <Square size={12} className="fill-white" />
           <span>Disconnect</span>

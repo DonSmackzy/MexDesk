@@ -80,29 +80,29 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
   };
 
   return (
-    <div className="absolute top-0 right-0 bottom-0 w-80 bg-white/95 backdrop-blur-md border-l border-slate-200 shadow-2xl z-40 flex flex-col">
+    <div className="absolute top-0 right-0 bottom-0 w-80 bg-[#1E293B]/95 backdrop-blur-md border-l border-[#334155] shadow-2xl z-40 flex flex-col">
       {/* Header */}
-      <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-white">
+      <div className="p-3.5 border-b border-[#334155] flex items-center justify-between bg-[#0F172A]">
         <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 rounded-lg bg-aegis-lightred flex items-center justify-center text-aegis-red">
+          <div className="w-7 h-7 rounded-lg bg-[#4F46E5]/20 flex items-center justify-center text-[#818CF8]">
             <MessageSquare size={15} />
           </div>
           <div>
-            <h3 className="text-xs font-bold text-slate-800">In-Session Chat</h3>
-            <p className="text-[10px] font-mono text-slate-400">{targetPeerId}</p>
+            <h3 className="text-xs font-bold text-white">In-Session Chat</h3>
+            <p className="text-[10px] font-mono text-[#818CF8]">{targetPeerId}</p>
           </div>
         </div>
 
         <button
           onClick={onClose}
-          className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+          className="p-1 rounded-lg hover:bg-[#334155] text-slate-400 hover:text-white transition"
         >
           <X size={16} />
         </button>
       </div>
 
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#1E293B]">
         {messages.map((m) => (
           <div
             key={m.id}
@@ -115,7 +115,7 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
             }`}
           >
             {m.sender === "system" ? (
-              <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full my-1">
+              <span className="text-[10px] text-slate-400 bg-[#0F172A] border border-[#334155] px-2 py-0.5 rounded-full my-1">
                 {m.text}
               </span>
             ) : (
@@ -123,8 +123,8 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
                 <div
                   className={`p-3 rounded-2xl text-xs ${
                     m.sender === "me"
-                      ? "bg-aegis-red text-white rounded-br-none shadow-sm"
-                      : "bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200"
+                      ? "bg-[#4F46E5] text-white rounded-br-none shadow-sm"
+                      : "bg-[#0F172A] text-slate-200 rounded-bl-none border border-[#334155]"
                   }`}
                 >
                   <p className="whitespace-pre-wrap break-words">{m.text}</p>
@@ -135,7 +135,7 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
                   }`}
                 >
                   <span>{m.time}</span>
-                  {m.sender === "me" && <CheckCheck size={11} className="text-slate-400" />}
+                  {m.sender === "me" && <CheckCheck size={11} className="text-[#818CF8]" />}
                 </div>
               </div>
             )}
@@ -145,40 +145,40 @@ export function ChatDrawer({ webrtc, targetPeerId, onClose }) {
       </div>
 
       {/* Quick Responses */}
-      <div className="px-3 py-1.5 border-t border-slate-100 flex items-center space-x-1 overflow-x-auto text-[10px] text-slate-500 bg-slate-50/50">
+      <div className="px-3 py-1.5 border-t border-[#334155] flex items-center space-x-1 overflow-x-auto text-[10px] text-slate-400 bg-[#0F172A]">
         <button
           onClick={() => sendQuickReply("Please grant keyboard control.")}
-          className="px-2 py-1 bg-white border border-slate-200 rounded-full hover:bg-slate-100 whitespace-nowrap"
+          className="px-2 py-1 bg-[#1E293B] border border-[#334155] text-slate-300 rounded-full hover:bg-[#334155] whitespace-nowrap transition cursor-pointer"
         >
           Request control
         </button>
         <button
           onClick={() => sendQuickReply("Transferring files now...")}
-          className="px-2 py-1 bg-white border border-slate-200 rounded-full hover:bg-slate-100 whitespace-nowrap"
+          className="px-2 py-1 bg-[#1E293B] border border-[#334155] text-slate-300 rounded-full hover:bg-[#334155] whitespace-nowrap transition cursor-pointer"
         >
           Sending files
         </button>
         <button
           onClick={() => sendQuickReply("Thanks!")}
-          className="px-2 py-1 bg-white border border-slate-200 rounded-full hover:bg-slate-100 whitespace-nowrap"
+          className="px-2 py-1 bg-[#1E293B] border border-[#334155] text-slate-300 rounded-full hover:bg-[#334155] whitespace-nowrap transition cursor-pointer"
         >
           Thanks!
         </button>
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSend} className="p-3 border-t border-slate-200 bg-white flex items-center space-x-2">
+      <form onSubmit={handleSend} className="p-3 border-t border-[#334155] bg-[#0F172A] flex items-center space-x-2">
         <input
           type="text"
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           placeholder="Type message..."
-          className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-aegis-red focus:border-transparent transition"
+          className="flex-1 px-3 py-2 bg-[#1E293B] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#818CF8] focus:border-transparent transition"
         />
         <button
           type="submit"
           disabled={!inputMessage.trim()}
-          className="p-2 rounded-xl bg-aegis-red hover:bg-aegis-crimson text-white transition disabled:opacity-40 shadow-sm"
+          className="p-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white transition disabled:opacity-40 shadow-sm cursor-pointer"
         >
           <Send size={15} />
         </button>

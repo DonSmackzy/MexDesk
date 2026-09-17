@@ -106,6 +106,10 @@ export function App() {
         next[peerId].localStream.getTracks().forEach((t) => t.stop());
       }
       delete next[peerId];
+      const remainingHostSessions = Object.values(next).some((s) => s.role === "host");
+      if (!remainingHostSessions && window.mexdeskAPI?.updateSessionControlState) {
+        window.mexdeskAPI.updateSessionControlState(false, false);
+      }
       return next;
     });
     // If we were viewing this tab, switch to home or next session
@@ -461,9 +465,23 @@ export function App() {
         }
       });
 
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.onended = () => {
+          handleCloseSession(callerId, "Screen sharing stopped by host user.");
+        };
+      }
+
+      if (window.mexdeskAPI?.updateSessionControlState) {
+        window.mexdeskAPI.updateSessionControlState(true, Boolean(permissions?.control));
+      }
+
       await rtc.init(stream);
       signalingRef.current.acceptCall(callerId, permissions);
     } catch (err) {
+      if (window.mexdeskAPI?.updateSessionControlState) {
+        window.mexdeskAPI.updateSessionControlState(false, false);
+      }
       console.error("[AegisDesk] Failed to start host session:", err);
       setErrorMessage("Could not share screen: " + err.message);
       setTimeout(() => setErrorMessage(""), 4000);
@@ -581,7 +599,7 @@ export function App() {
   const isHostingSession = activeSession && activeSession.role === "host";
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden select-none">
+    <div className="h-screen w-screen flex flex-col bg-[#0F172A] text-slate-100 font-sans overflow-hidden select-none">
       {/* TitleBar with Session Tabs */}
       <TitleBar
         isOnline={isConnected}
@@ -594,11 +612,11 @@ export function App() {
 
       {/* Update Banner */}
       {updateAvailable && (
-        <div className="bg-[#DC2626] text-white text-xs px-4 py-2 flex items-center justify-between">
+        <div className="bg-[#4F46E5] text-white text-xs px-4 py-2 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Download size={14} />
             <span className="font-medium">
-              AegisDesk v{updateAvailable.version} is available.
+              MexDesk v{updateAvailable.version} is available.
             </span>
           </div>
           <div className="flex items-center space-x-2">
@@ -616,9 +634,9 @@ export function App() {
         </div>
       )}
 
-      {/* Global Error Banner */}
+      {/* Global Error Banner (Destructive red) */}
       {errorMessage && (
-        <div className="bg-[#DC2626] text-white text-xs px-4 py-2 flex items-center justify-between animate-in slide-in-from-top duration-200">
+        <div className="bg-[#EF4444] text-white text-xs px-4 py-2 flex items-center justify-between animate-in slide-in-from-top duration-200">
           <div className="flex items-center space-x-2">
             <AlertCircle size={14} />
             <span className="font-medium">{errorMessage}</span>
@@ -681,27 +699,27 @@ export function App() {
             key={peerId}
             className={activeTab === peerId ? "flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4" : "hidden"}
           >
-            <div className="w-16 h-16 rounded-2xl bg-[#FFF1F1] text-[#DC2626] flex items-center justify-center animate-pulse">
-              <span className="text-2xl font-bold">A</span>
+            <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 text-[#818CF8] flex items-center justify-center animate-pulse border border-indigo-500/30">
+              <span className="text-2xl font-bold">M</span>
             </div>
             <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-[#DC2626] block mb-1">
+              <span className="text-xs uppercase tracking-wider font-semibold text-[#818CF8] block mb-1">
                 Active Host Session
               </span>
-              <h2 className="text-xl font-bold text-slate-800">
+              <h2 className="text-xl font-bold text-white">
                 Sharing screen with Desk{" "}
-                <span className="font-mono text-[#DC2626]">
+                <span className="font-mono text-[#818CF8]">
                   {session.alias ? `${session.alias} (${peerId})` : peerId}
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
                 The remote desk can view and control your computer according to granted permissions.
               </p>
             </div>
 
             <button
               onClick={() => handleCloseSession(peerId, "You stopped sharing your screen.")}
-              className="px-6 py-2.5 bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-semibold rounded-xl shadow-md shadow-red-500/20 transition cursor-pointer"
+              className="px-6 py-2.5 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-semibold rounded-xl shadow-md shadow-red-900/30 transition cursor-pointer"
             >
               End Remote Session
             </button>
@@ -711,14 +729,14 @@ export function App() {
 
       {/* Calling / Connecting Dialog */}
       {isCallingModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 w-full max-w-sm text-center space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="w-14 h-14 rounded-full bg-rose-50 border border-rose-200 text-[#DC2626] flex items-center justify-center mx-auto animate-pulse">
-              <span className="text-lg font-bold">A</span>
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1E293B] rounded-2xl border border-[#334155] shadow-2xl p-6 w-full max-w-sm text-center space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 text-[#818CF8] flex items-center justify-center mx-auto animate-pulse">
+              <span className="text-lg font-bold">M</span>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Connecting to Remote Desk...</h3>
-              <p className="text-xs font-mono text-[#DC2626] font-semibold mt-1">
+              <h3 className="text-sm font-bold text-white">Connecting to Remote Desk...</h3>
+              <p className="text-xs font-mono text-[#818CF8] font-semibold mt-1">
                 {callingTarget.alias ? `${callingTarget.alias} (${callingTarget.id})` : callingTarget.id}
               </p>
               <p className="text-[11px] text-slate-400 mt-1">Waiting for remote user to accept...</p>
@@ -729,7 +747,7 @@ export function App() {
                 setErrorMessage("Connection attempt cancelled.");
                 setTimeout(() => setErrorMessage(""), 3500);
               }}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+              className="px-4 py-2 bg-[#0F172A] hover:bg-[#253248] text-slate-300 border border-[#334155] text-xs font-semibold rounded-xl transition"
             >
               Cancel
             </button>
@@ -763,21 +781,21 @@ export function App() {
 
       {/* Password Challenge Modal for Unattended Access */}
       {passwordChallenge && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 w-full max-w-sm space-y-4 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1E293B] rounded-2xl border border-[#334155] shadow-2xl p-6 w-full max-w-sm space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30 shrink-0">
                 <Lock size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Authentication Required</h3>
-                <p className="text-[11px] text-slate-500">
-                  Desk <span className="font-mono text-[#DC2626] font-semibold">{passwordChallenge.targetAlias || passwordChallenge.targetId}</span>
+                <h3 className="text-sm font-bold text-white">Authentication Required</h3>
+                <p className="text-[11px] text-slate-400">
+                  Desk <span className="font-mono text-[#818CF8] font-semibold">{passwordChallenge.targetAlias || passwordChallenge.targetId}</span>
                 </p>
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               This desk requires an unattended access password before establishing a remote session.
             </p>
 
@@ -794,7 +812,7 @@ export function App() {
               className="space-y-4"
             >
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                   Unattended Password
                 </label>
                 <input
@@ -803,7 +821,7 @@ export function App() {
                   onChange={(e) => setChallengePasswordInput(e.target.value)}
                   placeholder="Enter remote password..."
                   autoFocus
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#DC2626]/30 focus:border-[#DC2626] transition font-mono"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#334155] bg-[#0F172A] text-white focus:bg-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#818CF8]/40 focus:border-[#818CF8] transition font-mono"
                 />
               </div>
 
@@ -814,14 +832,14 @@ export function App() {
                     setPasswordChallenge(null);
                     setChallengePasswordInput("");
                   }}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!challengePasswordInput.trim()}
-                  className="px-4 py-1.5 bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1.5"
+                  className="px-4 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1.5"
                 >
                   <span>Connect</span>
                   <ArrowRight size={13} />

@@ -13,7 +13,7 @@ import {
 export function WhiteboardOverlay({ webrtc, onClose }) {
   const canvasRef = useRef(null);
   const [tool, setTool] = useState("pen"); // pen, highlighter, rectangle, arrow, eraser
-  const [color, setColor] = useState("#DC2626"); // Default iconic AegisDesk red!
+  const [color, setColor] = useState("#4F46E5"); // Default indigo
   const [lineWidth, setLineWidth] = useState(3);
   const [isDrawing, setIsDrawing] = useState(false);
   const [history, setHistory] = useState([]);
@@ -21,12 +21,12 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
   const currentStrokeRef = useRef([]);
 
   const colors = [
-    { name: "AegisDesk Red", value: "#DC2626" },
-    { name: "Blue", value: "#2563EB" },
+    { name: "Indigo", value: "#4F46E5" },
+    { name: "Periwinkle", value: "#818CF8" },
     { name: "Emerald", value: "#10B981" },
     { name: "Amber", value: "#F59E0B" },
+    { name: "Red", value: "#EF4444" },
     { name: "White", value: "#FFFFFF" },
-    { name: "Black", value: "#0F172A" },
   ];
 
   useEffect(() => {
@@ -224,13 +224,13 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
       />
 
       {/* FLOATING WHITEBOARD TOOLBAR */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl p-2 shadow-floating flex items-center space-x-2 text-slate-700 cursor-default">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#0F172A]/95 backdrop-blur-md border border-[#334155] rounded-2xl p-2 shadow-floating flex items-center space-x-2 text-slate-200 cursor-default">
         {/* Tools */}
-        <div className="flex items-center space-x-1 border-r border-slate-200 pr-2">
+        <div className="flex items-center space-x-1 border-r border-[#334155] pr-2">
           <button
             onClick={() => setTool("pen")}
             className={`p-2 rounded-xl transition ${
-              tool === "pen" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "pen" ? "bg-[#4F46E5] text-white" : "hover:bg-[#1E293B] text-slate-300"
             }`}
             title="Pen"
           >
@@ -239,7 +239,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("highlighter")}
             className={`p-2 rounded-xl transition ${
-              tool === "highlighter" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "highlighter" ? "bg-[#4F46E5] text-white" : "hover:bg-[#1E293B] text-slate-300"
             }`}
             title="Highlighter"
           >
@@ -248,7 +248,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("arrow")}
             className={`p-2 rounded-xl transition ${
-              tool === "arrow" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "arrow" ? "bg-[#4F46E5] text-white" : "hover:bg-[#1E293B] text-slate-300"
             }`}
             title="Arrow"
           >
@@ -257,7 +257,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("rectangle")}
             className={`p-2 rounded-xl transition ${
-              tool === "rectangle" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "rectangle" ? "bg-[#4F46E5] text-white" : "hover:bg-[#1E293B] text-slate-300"
             }`}
             title="Rectangle"
           >
@@ -266,7 +266,7 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={() => setTool("eraser")}
             className={`p-2 rounded-xl transition ${
-              tool === "eraser" ? "bg-aegis-red text-white" : "hover:bg-slate-100 text-slate-600"
+              tool === "eraser" ? "bg-[#4F46E5] text-white" : "hover:bg-[#1E293B] text-slate-300"
             }`}
             title="Eraser"
           >
@@ -275,13 +275,13 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
         </div>
 
         {/* Colors */}
-        <div className="flex items-center space-x-1.5 border-r border-slate-200 pr-2">
+        <div className="flex items-center space-x-1.5 border-r border-[#334155] pr-2">
           {colors.map((c) => (
             <button
               key={c.value}
               onClick={() => setColor(c.value)}
               className={`w-5 h-5 rounded-full border transition transform ${
-                color === c.value ? "scale-125 ring-2 ring-aegis-red ring-offset-1" : "hover:scale-110"
+                color === c.value ? "scale-125 ring-2 ring-[#818CF8] ring-offset-1 ring-offset-slate-900" : "hover:scale-110"
               }`}
               style={{ backgroundColor: c.value, borderColor: c.value === "#FFFFFF" ? "#CBD5E1" : "transparent" }}
               title={c.name}
@@ -294,21 +294,21 @@ export function WhiteboardOverlay({ webrtc, onClose }) {
           <button
             onClick={handleUndo}
             disabled={history.length === 0}
-            className="p-2 rounded-xl hover:bg-slate-100 text-slate-600 disabled:opacity-40 transition"
+            className="p-2 rounded-xl hover:bg-[#1E293B] text-slate-300 disabled:opacity-40 transition"
             title="Undo"
           >
             <Undo2 size={16} />
           </button>
           <button
             onClick={handleClear}
-            className="p-2 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-aegis-red transition"
+            className="p-2 rounded-xl hover:bg-[#EF4444]/20 text-slate-300 hover:text-[#EF4444] transition"
             title="Clear All"
           >
             <Trash2 size={16} />
           </button>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition ml-1"
+            className="p-2 rounded-xl hover:bg-[#1E293B] text-slate-400 hover:text-white transition ml-1"
             title="Exit Whiteboard"
           >
             <X size={16} />

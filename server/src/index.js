@@ -25,6 +25,10 @@ const MIME_TYPES = {
 const peers = new Map();
 const socketToPeerId = new Map();
 
+// Call state machine (SEC-03): track pending call invitations `${callerId}->${targetId}` -> timestamp (30s TTL)
+const pendingCalls = new Map();
+const PENDING_CALL_TIMEOUT_MS = 30000;
+
 // Device registry: deviceId -> { tokenHash, alias, passwordHash, passwordSalt, createdAt }
 const deviceRegistry = new Map();
 const REGISTRY_FILE = process.env.MEXDESK_REGISTRY_PATH || path.resolve(__dirname, "../registry.json");
@@ -328,6 +332,12 @@ wss.on("connection", (ws, req) => {
           type: "lan-peer-left",
           peerId
         });
+      }
+      // Purge any pending call states involving this peer
+      for (const key of pendingCalls.keys()) {
+        if (key.startsWith(`${peerId}->`) || key.endsWith(`->${peerId}`)) {
+          pendingCalls.delete(key);
+        }
       }
       peers.delete(peerId);
       socketToPeerId.delete(ws);
@@ -697,11 +707,14 @@ function handleMessage(ws, msg) {
           }
         }
 
+        // Record pending call with timestamp (SEC-03 call state machine)
+        pendingCalls.set(`${callerId}->${targetId}`, Date.now());
+
         // Standard interactive incoming call prompt
         sendTo(targetPeer.ws, {
           type: "incoming-call",
           callerId,
-          callerAlias: msg.callerAlias || "MexDesk User",
+          callerAlias: msg.callerAlias || "AegisDesk User",
           connectionType: msg.connectionType || "full-control"
         });
 
@@ -710,13 +723,31 @@ function handleMessage(ws, msg) {
           targetId
         });
 
-        console.log(`[MexDesk Server] Calling: ${callerId} -> ${targetId}`);
+        console.log(`[AegisDesk Server] Calling: ${callerId} -> ${targetId}`);
         break;
       }
 
       case "accept-call": {
         const hostId = socketToPeerId.get(ws);
         const callerId = normalizeId(msg.callerId);
+
+        // Security check (SEC-03): verify valid pending call from this caller
+        const callKey = `${callerId}->${hostId}`;
+        const callTime = pendingCalls.get(callKey);
+        const now = Date.now();
+
+        if (!callTime || (now - callTime > PENDING_CALL_TIMEOUT_MS)) {
+          pendingCalls.delete(callKey);
+          console.warn(`[AegisDesk Server] Rejected accept-call from ${hostId} for caller ${callerId}: no active pending call`);
+          sendTo(ws, {
+            type: "call-error",
+            message: "Incoming call expired or was not initiated by the remote peer."
+          });
+          return;
+        }
+
+        // Consume pending call
+        pendingCalls.delete(callKey);
 
         const caller = peers.get(callerId);
         const host = peers.get(hostId);
@@ -751,13 +782,14 @@ function handleMessage(ws, msg) {
           permissions: msg.permissions
         });
 
-        console.log(`[MexDesk Server] Session accepted: ${callerId} <-> ${hostId}`);
+        console.log(`[AegisDesk Server] Session accepted: ${callerId} <-> ${hostId}`);
         break;
       }
 
       case "reject-call": {
         const hostId = socketToPeerId.get(ws);
         const callerId = normalizeId(msg.callerId);
+        pendingCalls.delete(`${callerId}->${hostId}`);
         sendToPeer(callerId, {
           type: "call-rejected",
           hostId,
@@ -771,15 +803,15 @@ function handleMessage(ws, msg) {
         const targetId = normalizeId(msg.targetId);
         const sender = peers.get(senderId);
 
-        // Security check: only relay if sender is in an active or establishing session
-        if (sender && (sender.sessionWith === targetId || sender.status === "busy")) {
+        // Security check (SEC-04): strictly relay only if sender has an active session with targetId
+        if (sender && sender.sessionWith === targetId) {
           sendToPeer(targetId, {
             type: "offer",
             senderId,
             sdp: msg.sdp
           });
         } else {
-          console.warn(`[MexDesk Server] Blocked unauthorized offer from ${senderId} to ${targetId}`);
+          console.warn(`[AegisDesk Server] Blocked unauthorized offer from ${senderId} to ${targetId}`);
         }
         break;
       }
@@ -789,14 +821,14 @@ function handleMessage(ws, msg) {
         const targetId = normalizeId(msg.targetId);
         const sender = peers.get(senderId);
 
-        if (sender && (sender.sessionWith === targetId || sender.status === "busy")) {
+        if (sender && sender.sessionWith === targetId) {
           sendToPeer(targetId, {
             type: "answer",
             senderId,
             sdp: msg.sdp
           });
         } else {
-          console.warn(`[MexDesk Server] Blocked unauthorized answer from ${senderId} to ${targetId}`);
+          console.warn(`[AegisDesk Server] Blocked unauthorized answer from ${senderId} to ${targetId}`);
         }
         break;
       }
@@ -806,14 +838,14 @@ function handleMessage(ws, msg) {
         const targetId = normalizeId(msg.targetId);
         const sender = peers.get(senderId);
 
-        if (sender && (sender.sessionWith === targetId || sender.status === "busy")) {
+        if (sender && sender.sessionWith === targetId) {
           sendToPeer(targetId, {
             type: "ice-candidate",
             senderId,
             candidate: msg.candidate
           });
         } else {
-          console.warn(`[MexDesk Server] Blocked unauthorized ice-candidate from ${senderId} to ${targetId}`);
+          console.warn(`[AegisDesk Server] Blocked unauthorized ice-candidate from ${senderId} to ${targetId}`);
         }
         break;
       }
@@ -821,6 +853,15 @@ function handleMessage(ws, msg) {
       case "hangup": {
         const senderId = socketToPeerId.get(ws);
         const sender = peers.get(senderId);
+        const targetId = msg.targetId ? normalizeId(msg.targetId) : null;
+
+        // Clean up pending calls for sender
+        for (const key of pendingCalls.keys()) {
+          if (key.startsWith(`${senderId}->`) || (targetId && key === `${senderId}->${targetId}`)) {
+            pendingCalls.delete(key);
+          }
+        }
+
         if (sender && sender.sessionWith) {
           const partnerId = sender.sessionWith;
           sendToPeer(partnerId, {
@@ -835,7 +876,7 @@ function handleMessage(ws, msg) {
           }
           sender.status = "available";
           sender.sessionWith = null;
-          console.log(`[MexDesk Server] Session ended between ${senderId} and ${partnerId}`);
+          console.log(`[AegisDesk Server] Session ended between ${senderId} and ${partnerId}`);
         }
         break;
       }

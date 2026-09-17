@@ -230,6 +230,11 @@ class InputController {
   }
 
   mapVirtualKey(code, key) {
+    // Security: Explicitly block Windows keys / OS Meta keys to prevent arbitrary remote command injection (e.g. Win+R)
+    if (code === "MetaLeft" || code === "MetaRight" || code === "OSLeft" || code === "OSRight" || key === "Meta" || key === "OS") {
+      return null;
+    }
+
     // Alphanumeric keys (A-Z)
     if (code && code.startsWith("Key")) {
       const letter = code.slice(3).toUpperCase();
@@ -283,8 +288,6 @@ class InputController {
       ControlRight: 0x11,
       AltLeft: 0x12,
       AltRight: 0x12,
-      MetaLeft: 0x5B,
-      MetaRight: 0x5C,
       ContextMenu: 0x5D,
       CapsLock: 0x14,
       NumLock: 0x90,

@@ -28,16 +28,16 @@ class ErrorBoundary extends React.Component {
           justifyContent: "center",
           padding: "24px",
           fontFamily: "system-ui, -apple-system, sans-serif",
-          backgroundColor: "#F8FAFC",
-          color: "#1E293B",
+          backgroundColor: "#0F172A",
+          color: "#F8FAFC",
           textAlign: "center"
         }}>
           <div style={{
             width: "56px",
             height: "56px",
             borderRadius: "16px",
-            backgroundColor: "#FEE2E2",
-            color: "#EF4444",
+            backgroundColor: "#4F46E5",
+            color: "#FFFFFF",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -45,29 +45,29 @@ class ErrorBoundary extends React.Component {
             fontWeight: "bold",
             marginBottom: "16px"
           }}>
-            A
+            M
           </div>
           <h2 style={{ fontSize: "18px", fontWeight: "bold", margin: "0 0 8px 0" }}>
-            AegisDesk Encountered an Error
+            MexDesk Encountered an Error
           </h2>
-          <p style={{ fontSize: "12px", color: "#64748B", maxWidth: "420px", marginBottom: "16px" }}>
+          <p style={{ fontSize: "12px", color: "#94A3B8", maxWidth: "420px", marginBottom: "16px" }}>
             {this.state.error?.message || "An unexpected error occurred while rendering the application interface."}
           </p>
           <button
             onClick={() => window.location.reload()}
             style={{
               padding: "8px 18px",
-              backgroundColor: "#DC2626",
+              backgroundColor: "#4F46E5",
               color: "#FFFFFF",
               border: "none",
               borderRadius: "8px",
               fontSize: "12px",
               fontWeight: 600,
               cursor: "pointer",
-              boxShadow: "0 2px 4px rgba(220, 38, 38, 0.2)"
+              boxShadow: "0 2px 8px rgba(79, 70, 229, 0.4)"
             }}
           >
-            Reload AegisDesk
+            Reload MexDesk
           </button>
         </div>
       );

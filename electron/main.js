@@ -23,13 +23,13 @@ function createWindow() {
     frame: false, // Frameless window with AnyDesk styled custom title bar
     title: "AegisDesk",
     icon: path.join(__dirname, "../public/icon.ico"),
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#0F172A",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
-      devTools: true,
+      devTools: !app.isPackaged,
     },
   });
 
@@ -46,8 +46,9 @@ function createWindow() {
     console.error(`[AegisDesk Main] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
   });
 
-  // F12 or Ctrl+Shift+I toggles DevTools for diagnostics
+  // F12 or Ctrl+Shift+I toggles DevTools for diagnostics (dev mode only)
   mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (app.isPackaged) return; // Completely disabled in production builds
     if ((input.key === "F12" && input.type === "keyDown") ||
         (input.control && input.shift && input.key.toLowerCase() === "i" && input.type === "keyDown")) {
       mainWindow.webContents.toggleDevTools();
@@ -55,18 +56,25 @@ function createWindow() {
     }
   });
 
-  // Navigation Guard: Block arbitrary URL navigation (whitelist cloud + local)
-  const ALLOWED_ORIGINS = ["https://mexdesk.onrender.com"];
+  // Navigation Guard: Block arbitrary URL navigation (whitelist exact cloud origin + local)
   mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
     try {
       const parsed = new URL(navigationUrl);
-      const isLocal = parsed.protocol === "file:" || navigationUrl.startsWith("http://localhost:") || navigationUrl.startsWith("http://127.0.0.1:");
-      const isAllowed = ALLOWED_ORIGINS.some((origin) => navigationUrl.startsWith(origin));
-      if (!isLocal && !isAllowed) {
+      const isLocal = parsed.protocol === "file:" || parsed.origin === "http://localhost:5173" || parsed.origin === "http://127.0.0.1:5173";
+      const isAllowedCloud = parsed.origin === "https://mexdesk.onrender.com";
+      if (!isLocal && !isAllowedCloud) {
         console.warn(`[AegisDesk Main] Blocked unauthorized navigation to: ${navigationUrl}`);
         event.preventDefault();
       }
     } catch {
+      event.preventDefault();
+    }
+  });
+
+  // Frame Navigation Guard: Block child frame navigations
+  mainWindow.webContents.on("will-frame-navigate", (event) => {
+    if (event.frame && event.frame !== mainWindow.webContents.mainFrame) {
+      console.warn(`[AegisDesk Main] Blocked child frame navigation to: ${event.url}`);
       event.preventDefault();
     }
   });
@@ -91,12 +99,12 @@ function createWindow() {
       });
     });
   } else {
-    // PRODUCTION: Always load bundled local app directly for instant 0ms launch & offline reliability
-    console.log(`[AegisDesk Main] Loading local app: ${localIndexPath}`);
-    mainWindow.loadFile(localIndexPath).catch((err) => {
-      console.warn(`[AegisDesk Main] Local load failed (${err.message}), trying cloud URL fallback`);
-      mainWindow.loadURL(CLOUD_URL).catch((cloudErr) => {
-        console.error("[AegisDesk Main] Cloud fallback also failed:", cloudErr.message);
+    // PRODUCTION: Load live cloud app for instant web updates, fallback to local dist if offline
+    console.log(`[AegisDesk Main] Loading live cloud app: ${CLOUD_URL}`);
+    mainWindow.loadURL(CLOUD_URL).catch((err) => {
+      console.warn(`[AegisDesk Main] Cloud URL load failed (${err.message}), falling back to local bundled dist`);
+      mainWindow.loadFile(localIndexPath).catch((localErr) => {
+        console.error("[AegisDesk Main] Local fallback also failed:", localErr.message);
       });
     });
   }
@@ -123,6 +131,12 @@ if (!gotTheLock) {
     if (session?.defaultSession?.setDisplayMediaRequestHandler) {
       session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
         try {
+          // Security check: ensure capture request originates from top-level trusted mainFrame
+          if (mainWindow && request.frame !== mainWindow.webContents.mainFrame) {
+            console.warn("[AegisDesk Main] Blocked display media request from non-main frame");
+            return callback({});
+          }
+
           const sources = await desktopCapturer.getSources({ types: ["screen"] });
           const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
           if (primarySource) {
@@ -152,6 +166,17 @@ app.on("window-all-closed", () => {
   }
 });
 
+// Session Authorization State (Main Process Security Boundary)
+let hostSessionActive = false;
+let hostControlGranted = false;
+
+ipcMain.on("session-control-state", (event, { active, controlGranted }) => {
+  if (mainWindow && event.sender !== mainWindow.webContents) return;
+  hostSessionActive = Boolean(active);
+  hostControlGranted = Boolean(controlGranted);
+  console.log(`[AegisDesk Main] Host session state updated: active=${hostSessionActive}, controlGranted=${hostControlGranted}`);
+});
+
 // IPC Handlers
 ipcMain.handle("get-screen-sources", async () => {
   try {
@@ -172,18 +197,57 @@ ipcMain.handle("get-screen-sources", async () => {
   }
 });
 
+const ALLOWED_INPUT_TYPES = [
+  "mouse_move",
+  "mouse_down",
+  "mouse_up",
+  "mouse_click",
+  "mouse_dblclick",
+  "mouse_wheel",
+  "key_down",
+  "key_up",
+  "shortcut",
+];
+
 ipcMain.on("simulate-input", async (event, inputPayload) => {
-  // 1. Sender validation
+  // 1. Sender and frame validation
   if (mainWindow && event.sender !== mainWindow.webContents) {
     console.warn("[AegisDesk Main] Rejected input simulation from unauthorized webContents sender");
     return;
   }
-  // 2. Schema and bounds validation
+  if (mainWindow && event.senderFrame && event.senderFrame !== mainWindow.webContents.mainFrame) {
+    console.warn("[AegisDesk Main] Rejected input simulation from non-main frame");
+    return;
+  }
+
+  // 2. Authorization Gating: Remote input requires active host session AND control granted
+  if (!hostSessionActive || !hostControlGranted) {
+    console.warn(`[AegisDesk Main] Blocked input simulation: active=${hostSessionActive}, controlGranted=${hostControlGranted}`);
+    return;
+  }
+
+  // 3. Schema and payload validation
   if (!inputPayload || typeof inputPayload !== "object" || !inputPayload.type) return;
 
+  if (!ALLOWED_INPUT_TYPES.includes(inputPayload.type)) {
+    console.warn(`[AegisDesk Main] Rejected unknown input event type: ${inputPayload.type}`);
+    return;
+  }
+
+  // 4. Coordinate bounds validation (normalized [0.0, 1.0])
   if (inputPayload.type.startsWith("mouse") && (inputPayload.x !== undefined || inputPayload.y !== undefined)) {
     if (typeof inputPayload.x === "number" && (inputPayload.x < 0.0 || inputPayload.x > 1.0 || isNaN(inputPayload.x))) return;
     if (typeof inputPayload.y === "number" && (inputPayload.y < 0.0 || inputPayload.y > 1.0 || isNaN(inputPayload.y))) return;
+  }
+
+  // 5. Block dangerous OS meta keys (Windows Key / Win+R prevention)
+  if (inputPayload.type === "key_down" || inputPayload.type === "key_up") {
+    const code = inputPayload.code;
+    const key = inputPayload.key;
+    if (code === "MetaLeft" || code === "MetaRight" || code === "OSLeft" || code === "OSRight" || key === "Meta" || key === "OS") {
+      console.warn(`[AegisDesk Main] Blocked dangerous key injection attempt: ${code || key}`);
+      return;
+    }
   }
 
   await inputController.handleEvent(inputPayload);
@@ -199,8 +263,12 @@ ipcMain.on("clipboard-write", (_, text) => {
 
 ipcMain.handle("save-file", async (_, { defaultName, buffer }) => {
   try {
+    // Sanitize filename to prevent directory traversal and illegal characters
+    const rawName = typeof defaultName === "string" ? path.basename(defaultName) : "aegisdesk-download";
+    const sanitizedName = rawName.replace(/[/\\?%*:|"<>]/g, "_").replace(/^\.+/, "").trim() || "aegisdesk-download";
+
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: defaultName || "aegisdesk-download",
+      defaultPath: sanitizedName,
     });
     if (canceled || !filePath) return { success: false };
 

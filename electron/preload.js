@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld("mexdeskAPI", {
     ipcRenderer.send("simulate-input", event);
   },
 
+  // Remote session control authorization state
+  updateSessionControlState: (active, controlGranted) => {
+    ipcRenderer.send("session-control-state", { active, controlGranted });
+  },
+
   // Clipboard integration
   readClipboard: async () => {
     return await ipcRenderer.invoke("clipboard-read");
