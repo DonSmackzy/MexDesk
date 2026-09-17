@@ -51,6 +51,19 @@ export function RemoteViewer({
   const [isToolbarPinned, setIsToolbarPinned] = useState(false);
   const hideTimerRef = useRef(null);
 
+  // Floating menus & drawers
+  const [showWhiteboard, setShowWhiteboard] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [showFileTransfer, setShowFileTransfer] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState(false);
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+
+  // Session Recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordDuration, setRecordDuration] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     if (isToolbarPinned || showActionsDropdown || showChat || showFileTransfer || showWhiteboard) {
@@ -64,19 +77,6 @@ export function RemoteViewer({
       }
     }, 3000);
   }, [isToolbarPinned, showActionsDropdown, showChat, showFileTransfer, showWhiteboard, isToolbarHovered]);
-
-  // Floating menus & drawers
-  const [showWhiteboard, setShowWhiteboard] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [showFileTransfer, setShowFileTransfer] = useState(false);
-  const [privacyMode, setPrivacyMode] = useState(false);
-  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
-
-  // Session Recording
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordDuration, setRecordDuration] = useState(0);
-  const mediaRecorderRef = useRef(null);
-  const recordedChunksRef = useRef([]);
 
   // Bind remote stream to video element
   useEffect(() => {
