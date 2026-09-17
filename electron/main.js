@@ -136,11 +136,18 @@ if (!gotTheLock) {
 
           const sources = await desktopCapturer.getSources({ types: ["screen"] });
           const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
+          const shouldCaptureAudio = process.platform === "win32";
           if (primarySource) {
-            console.log(`[AegisDesk Main] Seamlessly capturing screen: ${primarySource.name} (${primarySource.id})`);
-            callback({ video: primarySource });
+            console.log(`[AegisDesk Main] Seamlessly capturing screen & loopback audio: ${primarySource.name} (${primarySource.id})`);
+            callback({
+              video: primarySource,
+              audio: shouldCaptureAudio ? "loopback" : undefined,
+            });
           } else {
-            callback({ video: request.video });
+            callback({
+              video: request.video,
+              audio: shouldCaptureAudio ? "loopback" : undefined,
+            });
           }
         } catch (err) {
           console.error("[AegisDesk Main] DisplayMedia handler error:", err);

@@ -47,6 +47,8 @@ export function RemoteViewer({
   const [scaleMode, setScaleMode] = useState("fit"); // "fit", "original", "stretch"
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Default to muted for seamless video autoplay
+  const [volume, setVolume] = useState(1.0); // 0.0 to 1.0
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState({ fps: 0, bitrate: 0, latency: 0 });
 
@@ -75,7 +77,7 @@ export function RemoteViewer({
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (isToolbarPinned || showActionsDropdown || showChat || showFileTransfer || showWhiteboard) {
+    if (isToolbarPinned || showActionsDropdown || showChat || showFileTransfer || showWhiteboard || showVolumeSlider) {
       setIsToolbarHidden(false);
       return;
     }
@@ -85,7 +87,7 @@ export function RemoteViewer({
         setIsToolbarHidden(true);
       }
     }, 3000);
-  }, [isToolbarPinned, showActionsDropdown, showChat, showFileTransfer, showWhiteboard, isToolbarHovered]);
+  }, [isToolbarPinned, showActionsDropdown, showChat, showFileTransfer, showWhiteboard, showVolumeSlider, isToolbarHovered]);
 
   // Sync with prop updates
   useEffect(() => {
@@ -117,7 +119,6 @@ export function RemoteViewer({
     const video = videoRef.current;
     if (video && remoteStream) {
       video.srcObject = remoteStream;
-      video.muted = isMuted;
       video.playsInline = true;
 
       const playPromise = video.play();
@@ -129,7 +130,15 @@ export function RemoteViewer({
         });
       }
     }
-  }, [remoteStream, isMuted]);
+  }, [remoteStream]);
+
+  // Sync mute state and volume with video element without video reloading
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+      videoRef.current.volume = Math.max(0, Math.min(1, volume));
+    }
+  }, [isMuted, volume]);
 
   // Attach input capture
   useEffect(() => {
@@ -415,6 +424,77 @@ export function RemoteViewer({
         >
           <Monitor size={15} />
         </button>
+
+        {/* Audio Volume & Mute Control */}
+        <div
+          className="relative flex items-center"
+          onMouseEnter={() => {
+            setShowVolumeSlider(true);
+            if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+          }}
+          onMouseLeave={() => {
+            setShowVolumeSlider(false);
+            resetHideTimer();
+          }}
+        >
+          <button
+            onClick={() => {
+              if (isMuted) {
+                setIsMuted(false);
+                if (volume === 0) setVolume(0.8);
+              } else {
+                setIsMuted(true);
+              }
+            }}
+            className={`p-1.5 rounded-full transition ${
+              !livePermissions?.audio
+                ? "text-slate-600 cursor-not-allowed opacity-60"
+                : isMuted
+                ? "text-amber-400 hover:bg-[#1E293B]"
+                : "text-slate-300 hover:text-white hover:bg-[#1E293B]"
+            }`}
+            title={
+              !livePermissions?.audio
+                ? "Host muted desktop audio transmission"
+                : isMuted
+                ? "Unmute Remote Audio"
+                : `Remote Audio (${Math.round(volume * 100)}%)`
+            }
+          >
+            {isMuted || !livePermissions?.audio || volume === 0 ? (
+              <VolumeX size={15} />
+            ) : (
+              <Volume2 size={15} />
+            )}
+          </button>
+
+          {/* Volume Slider Dropdown */}
+          {showVolumeSlider && livePermissions?.audio && (
+            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-[#1E293B] border border-[#334155] rounded-xl shadow-xl px-3 py-2 z-50 flex flex-col items-center space-y-1.5 animate-in fade-in duration-150 w-28">
+              <div className="flex items-center justify-between w-full text-[10px] font-mono text-slate-300 font-semibold">
+                <span>Vol</span>
+                <span>{isMuted ? "0%" : `${Math.round(volume * 100)}%`}</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={isMuted ? 0 : volume}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setVolume(val);
+                  if (val > 0 && isMuted) {
+                    setIsMuted(false);
+                  } else if (val === 0 && !isMuted) {
+                    setIsMuted(true);
+                  }
+                }}
+                className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-[#4F46E5]"
+              />
+            </div>
+          )}
+        </div>
 
         {/* Actions Dropdown (Shortcuts) */}
         <div className="relative">

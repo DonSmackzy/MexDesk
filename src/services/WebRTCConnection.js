@@ -68,6 +68,9 @@ export class WebRTCConnection {
         if (videoTransceiver?.receiver && "playoutDelayHint" in videoTransceiver.receiver) {
           videoTransceiver.receiver.playoutDelayHint = 0; // Zero latency playout for instant responsiveness
         }
+        if (audioTransceiver?.receiver && "playoutDelayHint" in audioTransceiver.receiver) {
+          audioTransceiver.receiver.playoutDelayHint = 0; // Synchronized zero audio playout delay
+        }
       } catch (err) {
         console.warn("[WebRTC] addTransceiver fallback:", err);
       }
@@ -79,8 +82,12 @@ export class WebRTCConnection {
       const fpsLimit = parseInt(localStorage.getItem("mexdesk_fps_limit") || "60", 10);
 
       this.localStream.getTracks().forEach((track) => {
+        console.log(`[WebRTC] Adding local track: ${track.kind} (${track.id}) enabled=${track.enabled}`);
         if (track.kind === "video" && "contentHint" in track) {
           track.contentHint = qualityProfile === "crisp" ? "detail" : "motion";
+        }
+        if (track.kind === "audio" && "contentHint" in track) {
+          track.contentHint = "music"; // High-fidelity loopback system audio
         }
         const sender = this.peerConnection.addTrack(track, this.localStream);
         if (track.kind === "video" && sender && sender.getParameters) {
@@ -102,13 +109,22 @@ export class WebRTCConnection {
       });
     }
 
-    // Handle remote track (client viewing host screen)
+    // Handle remote track (client viewing host screen and listening to desktop audio)
     this.peerConnection.ontrack = (event) => {
-      console.log("[WebRTC] ontrack received track:", event.track.kind);
+      console.log(`[WebRTC] ontrack received track: ${event.track.kind} (${event.track.id})`);
       if (event.receiver && "playoutDelayHint" in event.receiver) {
         event.receiver.playoutDelayHint = 0; // Eliminate playout delay
       }
-      this.remoteStream = event.streams[0] || new MediaStream([event.track]);
+      if (event.streams && event.streams[0]) {
+        this.remoteStream = event.streams[0];
+      } else {
+        if (!this.remoteStream) {
+          this.remoteStream = new MediaStream();
+        }
+        if (!this.remoteStream.getTracks().some((t) => t.id === event.track.id)) {
+          this.remoteStream.addTrack(event.track);
+        }
+      }
       this.trigger("remote-stream", this.remoteStream);
     };
 

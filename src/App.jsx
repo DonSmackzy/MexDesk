@@ -186,6 +186,16 @@ export function App() {
 
       hostPermissionsRef.current[peerId] = updatedPerms;
 
+      // Dynamically toggle audio tracks on localStream if audio permission is toggled
+      if (permissionKey === "audio" && session.localStream) {
+        const audioTracks = session.localStream.getAudioTracks();
+        const shouldEnable = Boolean(updatedPerms.audio);
+        audioTracks.forEach((t) => {
+          t.enabled = shouldEnable;
+        });
+        console.log(`[AegisDesk] Toggled host audio stream enabled=${shouldEnable} (${audioTracks.length} tracks)`);
+      }
+
       // Update native Electron security layer
       if (window.mexdeskAPI?.updateSessionControlState) {
         window.mexdeskAPI.updateSessionControlState(true, Boolean(updatedPerms.control));
@@ -590,13 +600,32 @@ export function App() {
     setIncomingCall(null);
 
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: "always",
-          frameRate: { ideal: 60, max: 60 },
-        },
-        audio: permissions.audio || false,
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: "always",
+            frameRate: { ideal: 60, max: 60 },
+          },
+          audio: permissions.audio !== false,
+        });
+      } catch (audioErr) {
+        console.warn("[AegisDesk] getDisplayMedia with audio failed, falling back to video-only:", audioErr);
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: "always",
+            frameRate: { ideal: 60, max: 60 },
+          },
+          audio: false,
+        });
+      }
+
+      // If initial permissions have audio disabled, mute audio tracks immediately
+      if (permissions.audio === false) {
+        stream.getAudioTracks().forEach((track) => {
+          track.enabled = false;
+        });
+      }
 
       const rtc = new WebRTCConnection(signalingRef.current, callerId, false);
 
