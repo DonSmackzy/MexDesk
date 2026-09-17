@@ -696,12 +696,23 @@ function handleMessage(ws, msg) {
               return;
             }
           } else {
-            // Desk requires password, but caller did not supply one yet
+            // Desk requires password, but caller did not supply one yet.
+            // Notify caller they need a password AND also show the incoming call
+            // modal on the host (AnyDesk-style: host can still manually accept).
             sendTo(ws, {
               type: "password-required",
               targetId,
               targetAlias: targetPeer.alias,
               message: "This desk requires an unattended access password."
+            });
+
+            // Also send incoming-call to host so they can manually accept
+            pendingCalls.set(`${callerId}->${targetId}`, Date.now());
+            sendTo(targetPeer.ws, {
+              type: "incoming-call",
+              callerId,
+              callerAlias: msg.callerAlias || "AegisDesk User",
+              connectionType: msg.connectionType || "full-control"
             });
             return;
           }

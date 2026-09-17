@@ -55,11 +55,11 @@ const TitleBar = ({
       {/* Center: Session Tabs */}
       <div
         className="flex items-center gap-0.5 flex-1 min-w-0 h-full overflow-x-auto scrollbar-hide px-2"
-        style={{ WebkitAppRegion: 'no-drag' }}
       >
         {/* Home / New Session Tab */}
         <button
           onClick={() => onSwitchTab?.('home')}
+          style={{ WebkitAppRegion: 'no-drag' }}
           className={`flex items-center gap-1.5 px-3 h-8 rounded-t-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
             activeTab === 'home'
               ? 'bg-[#1E293B] text-white shadow-sm border-t-2 border-t-[#818CF8] border-x border-x-[#334155]'
@@ -79,6 +79,7 @@ const TitleBar = ({
           return (
             <div
               key={peerId}
+              style={{ WebkitAppRegion: 'no-drag' }}
               className={`group flex items-center gap-1.5 px-3 h-8 rounded-t-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 cursor-pointer ${
                 isActive
                   ? 'bg-[#1E293B] text-white shadow-sm border-t-2 border-t-[#818CF8] border-x border-x-[#334155]'

@@ -26,6 +26,8 @@ export function SettingsModal({
 }) {
   const [activeTab, setActiveTab] = useState("security");
   const [password, setPassword] = useState(unattendedPassword || "");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [serverUrl, setServerUrl] = useState(signalingUrl || "ws://localhost:7777");
   const [allowDiscovery, setAllowDiscovery] = useState(!optOutDiscovery);
   const [fpsLimit, setFpsLimit] = useState(localStorage.getItem("mexdesk_fps_limit") || "60");
@@ -35,8 +37,18 @@ export function SettingsModal({
 
   const handleSaveSecurity = (e) => {
     e.preventDefault();
-    onSavePassword(password.trim());
-    setSavedMessage("Security settings updated!");
+    setPasswordError("");
+    // Validate confirm field only when setting a new non-empty password
+    const trimmed = password.trim();
+    if (trimmed && trimmed !== (unattendedPassword || "")) {
+      if (trimmed !== confirmPassword.trim()) {
+        setPasswordError("Passwords do not match. Please re-enter.");
+        return;
+      }
+    }
+    onSavePassword(trimmed);
+    setConfirmPassword("");
+    setSavedMessage(trimmed ? "Unattended access enabled!" : "Unattended access disabled.");
     setTimeout(() => setSavedMessage(""), 2500);
   };
 
@@ -147,11 +159,33 @@ export function SettingsModal({
                     <input
                       type="password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }}
                       placeholder="Leave blank to disable unattended access"
                       className={`w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 ${inputFocusClass}`}
                     />
                   </div>
+
+                  {password.trim() && password.trim() !== (unattendedPassword || "") && (
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block mb-1">
+                        Confirm Password
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }}
+                        placeholder="Re-enter password to confirm"
+                        className={`w-full px-3 py-2 bg-[#0F172A] border ${
+                          passwordError ? "border-[#EF4444]" : "border-[#334155]"
+                        } rounded-xl text-xs text-white placeholder:text-slate-500 ${inputFocusClass}`}
+                      />
+                      {passwordError && (
+                        <p className="text-[11px] text-[#EF4444] mt-1.5 flex items-center gap-1">
+                          <span>⚠</span> {passwordError}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="p-3 bg-[#0F172A] border border-[#334155] rounded-xl flex items-center space-x-2.5">
                     <Shield size={16} className="text-emerald-400 shrink-0" />

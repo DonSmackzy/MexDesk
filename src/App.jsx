@@ -349,12 +349,16 @@ export function App() {
     client.on("unattended-session-started", async (data) => {
       console.log("[AegisDesk] Unattended session starting from caller:", data.callerId);
       if (startHostSessionRef.current) {
-        await startHostSessionRef.current(data.callerId, data.permissions || {
-          control: true,
-          fileTransfer: true,
-          clipboard: true,
-          audio: true,
-        });
+        await startHostSessionRef.current(
+          data.callerId,
+          data.callerAlias || "",
+          data.permissions || {
+            control: true,
+            fileTransfer: true,
+            clipboard: true,
+            audio: true,
+          }
+        );
       }
     });
 
@@ -413,7 +417,7 @@ export function App() {
   };
 
   // Host: Start screen streaming & WebRTC session
-  const startHostSession = async (callerId, permissions) => {
+  const startHostSession = async (callerId, callerAlias, permissions) => {
     setIncomingCall(null);
 
     try {
@@ -428,7 +432,7 @@ export function App() {
       const rtc = new WebRTCConnection(signalingRef.current, callerId, false);
 
       createSession(callerId, {
-        alias: callingTarget.alias || "",
+        alias: callerAlias || "",
         webrtc: rtc,
         permissions,
         localStream: stream,
@@ -502,7 +506,8 @@ export function App() {
   const handleAcceptCall = async (permissions) => {
     if (!incomingCall || !signalingRef.current) return;
     const callerId = incomingCall.callerId;
-    await startHostSession(callerId, permissions);
+    const callerAlias = incomingCall.callerAlias || "";
+    await startHostSession(callerId, callerAlias, permissions);
   };
 
   // Host: Reject incoming connection
