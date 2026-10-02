@@ -154,11 +154,21 @@ class InputController {
         case "shortcut":
           await this.handleShortcut(event);
           break;
+        case "batch":
+          await this.handleBatch(event);
+          break;
         default:
           break;
       }
     } catch (err) {
       console.error("[MexDesk Input] Native event dispatch error:", err.message);
+    }
+  }
+
+  async handleBatch({ events }) {
+    if (!Array.isArray(events)) return;
+    for (const ev of events) {
+      await this.handleEvent(ev);
     }
   }
 

@@ -112,7 +112,8 @@ export class WebRTCConnection {
       this.localStream.getTracks().forEach((track) => {
         console.log(`[WebRTC] Adding local track: ${track.kind} (${track.id}) enabled=${track.enabled}`);
         if (track.kind === "video" && "contentHint" in track) {
-          track.contentHint = qualityProfile === "crisp" ? "detail" : "motion";
+          // Default to "detail" for crystal-clear UI text readability (AnyDesk standard)
+          track.contentHint = qualityProfile === "motion" ? "motion" : "detail";
         }
         if (track.kind === "audio" && "contentHint" in track) {
           track.contentHint = "music"; // High-fidelity loopback system audio
@@ -124,8 +125,8 @@ export class WebRTCConnection {
             if (!params.encodings || params.encodings.length === 0) {
               params.encodings = [{}];
             }
-            // "maintain-framerate": Prioritize fluid cursor & animation over pixel perfection on slow connections
-            params.degradationPreference = "maintain-framerate";
+            // "maintain-resolution": Prioritize sharp text and UI lines over frame drops during congestion
+            params.degradationPreference = qualityProfile === "motion" ? "maintain-framerate" : "maintain-resolution";
             if (fpsLimit > 0) {
               params.encodings[0].maxFramerate = fpsLimit;
             }
@@ -355,7 +356,7 @@ export class WebRTCConnection {
     return false;
   }
 
-  async applyEncodingParameters({ maxBitrate, maxFramerate, scaleResolutionDownBy }) {
+  async applyEncodingParameters({ maxBitrate, maxFramerate, scaleResolutionDownBy, degradationPreference }) {
     if (!this.peerConnection) return;
     try {
       const senders = this.peerConnection.getSenders();
@@ -383,10 +384,23 @@ export class WebRTCConnection {
         changed = true;
       }
 
+      const targetDegradation = degradationPreference || "maintain-resolution";
+      if (params.degradationPreference !== targetDegradation) {
+        params.degradationPreference = targetDegradation;
+        changed = true;
+      }
+
       if (changed) {
-        params.degradationPreference = "maintain-framerate";
         await videoSender.setParameters(params);
-        console.log(`[WebRTC Quality] Applied params: ${Math.round(maxBitrate / 1000)} kbps, ${maxFramerate} fps, scale: ${scaleResolutionDownBy}`);
+        console.log(`[WebRTC Quality] Applied params: ${Math.round(maxBitrate / 1000)} kbps, ${maxFramerate} fps, scale: ${scaleResolutionDownBy}, degradation: ${params.degradationPreference}`);
+      }
+
+      // Dynamically toggle contentHint to guide the WebRTC video encoder
+      if (videoSender.track && "contentHint" in videoSender.track) {
+        const targetHint = targetDegradation === "maintain-framerate" ? "motion" : "detail";
+        if (videoSender.track.contentHint !== targetHint) {
+          videoSender.track.contentHint = targetHint;
+        }
       }
     } catch (err) {
       console.warn("[WebRTC Quality] applyEncodingParameters error:", err.message);
@@ -397,11 +411,26 @@ export class WebRTCConnection {
     this.qualityMode = mode;
     console.log(`[WebRTC Quality] Quality mode changed: ${mode}`);
     if (mode === "high") {
-      await this.applyEncodingParameters({ maxBitrate: 4000000, maxFramerate: 60, scaleResolutionDownBy: 1.0 });
+      await this.applyEncodingParameters({
+        maxBitrate: 5000000,
+        maxFramerate: 60,
+        scaleResolutionDownBy: 1.0,
+        degradationPreference: "maintain-resolution",
+      });
     } else if (mode === "balanced") {
-      await this.applyEncodingParameters({ maxBitrate: 2000000, maxFramerate: 30, scaleResolutionDownBy: 1.0 });
+      await this.applyEncodingParameters({
+        maxBitrate: 2500000,
+        maxFramerate: 30,
+        scaleResolutionDownBy: 1.0,
+        degradationPreference: "maintain-resolution",
+      });
     } else if (mode === "speed") {
-      await this.applyEncodingParameters({ maxBitrate: 700000, maxFramerate: 20, scaleResolutionDownBy: 1.5 });
+      await this.applyEncodingParameters({
+        maxBitrate: 800000,
+        maxFramerate: 24,
+        scaleResolutionDownBy: 1.25,
+        degradationPreference: "maintain-framerate",
+      });
     } else {
       this.applyTier(this.currentTier);
     }
@@ -443,11 +472,11 @@ export class WebRTCConnection {
 
   applyTier(tier) {
     const tiers = {
-      4: { maxBitrate: 4000000, maxFramerate: 60, scaleResolutionDownBy: 1.0 },
-      3: { maxBitrate: 2500000, maxFramerate: 60, scaleResolutionDownBy: 1.0 },
-      2: { maxBitrate: 1200000, maxFramerate: 30, scaleResolutionDownBy: 1.25 },
-      1: { maxBitrate: 600000, maxFramerate: 20, scaleResolutionDownBy: 1.5 },
-      0: { maxBitrate: 300000, maxFramerate: 15, scaleResolutionDownBy: 2.0 },
+      4: { maxBitrate: 4500000, maxFramerate: 60, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
+      3: { maxBitrate: 2800000, maxFramerate: 60, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
+      2: { maxBitrate: 1500000, maxFramerate: 30, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
+      1: { maxBitrate: 750000, maxFramerate: 24, scaleResolutionDownBy: 1.25, degradationPreference: "maintain-framerate" },
+      0: { maxBitrate: 350000, maxFramerate: 15, scaleResolutionDownBy: 1.75, degradationPreference: "maintain-framerate" },
     };
     const settings = tiers[tier] || tiers[4];
     this.applyEncodingParameters(settings);

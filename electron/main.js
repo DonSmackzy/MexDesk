@@ -290,16 +290,13 @@ const ALLOWED_INPUT_TYPES = [
   "key_down",
   "key_up",
   "shortcut",
+  "batch",
 ];
 
 ipcMain.on("simulate-input", async (event, inputPayload) => {
-  // 1. Sender and frame validation
+  // 1. Sender validation
   if (mainWindow && event.sender !== mainWindow.webContents) {
     console.warn("[AegisDesk Main] Rejected input simulation from unauthorized webContents sender");
-    return;
-  }
-  if (mainWindow && event.senderFrame && event.senderFrame !== mainWindow.webContents.mainFrame) {
-    console.warn("[AegisDesk Main] Rejected input simulation from non-main frame");
     return;
   }
 
@@ -317,13 +314,41 @@ ipcMain.on("simulate-input", async (event, inputPayload) => {
     return;
   }
 
-  // 4. Coordinate bounds validation (normalized [0.0, 1.0])
+  // 4. Batch event execution
+  if (inputPayload.type === "batch") {
+    if (!Array.isArray(inputPayload.events)) return;
+    const sanitizedEvents = [];
+    for (const sub of inputPayload.events.slice(0, 60)) {
+      if (!sub || typeof sub !== "object" || !sub.type || sub.type === "batch") continue;
+      if (!ALLOWED_INPUT_TYPES.includes(sub.type)) continue;
+
+      if (sub.type.startsWith("mouse") && (sub.x !== undefined || sub.y !== undefined)) {
+        if (typeof sub.x === "number" && (sub.x < 0.0 || sub.x > 1.0 || isNaN(sub.x))) continue;
+        if (typeof sub.y === "number" && (sub.y < 0.0 || sub.y > 1.0 || isNaN(sub.y))) continue;
+      }
+
+      if (sub.type === "key_down" || sub.type === "key_up") {
+        const code = sub.code;
+        const key = sub.key;
+        if (code === "MetaLeft" || code === "MetaRight" || code === "OSLeft" || code === "OSRight" || key === "Meta" || key === "OS") continue;
+      }
+
+      sanitizedEvents.push(sub);
+    }
+
+    if (sanitizedEvents.length > 0) {
+      await inputController.handleBatch({ events: sanitizedEvents });
+    }
+    return;
+  }
+
+  // 5. Coordinate bounds validation (normalized [0.0, 1.0])
   if (inputPayload.type.startsWith("mouse") && (inputPayload.x !== undefined || inputPayload.y !== undefined)) {
     if (typeof inputPayload.x === "number" && (inputPayload.x < 0.0 || inputPayload.x > 1.0 || isNaN(inputPayload.x))) return;
     if (typeof inputPayload.y === "number" && (inputPayload.y < 0.0 || inputPayload.y > 1.0 || isNaN(inputPayload.y))) return;
   }
 
-  // 5. Block dangerous OS meta keys (Windows Key / Win+R prevention)
+  // 6. Block dangerous OS meta keys (Windows Key / Win+R prevention)
   if (inputPayload.type === "key_down" || inputPayload.type === "key_up") {
     const code = inputPayload.code;
     const key = inputPayload.key;

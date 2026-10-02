@@ -6,9 +6,10 @@ export class InputCapture {
     this.targetElement = targetElement;
     this.videoElement = videoElement;
     this.isEnabled = false;
-    this.lastMoveTime = 0;
+    // 60Hz Micro-batching state
+    this.batchQueue = [];
+    this.latestMouseMove = null;
     this.rafId = null;
-    this.pendingMove = null;
 
     this.boundMouseMove = this.onMouseMove.bind(this);
     this.boundMouseDown = this.onMouseDown.bind(this);
@@ -51,7 +52,12 @@ export class InputCapture {
     }
     window.removeEventListener("keydown", this.boundKeyDown);
     window.removeEventListener("keyup", this.boundKeyUp);
-    if (this.rafId) cancelAnimationFrame(this.rafId);
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.latestMouseMove = null;
+    this.batchQueue = [];
   }
 
   getNormalizedCoords(event) {
@@ -100,66 +106,81 @@ export class InputCapture {
     return { x, y };
   }
 
+  scheduleFlush() {
+    if (this.rafId) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      this.flushBatch();
+    });
+  }
+
+  flushBatch() {
+    if (this.latestMouseMove) {
+      this.batchQueue.push({
+        type: "mouse_move",
+        x: this.latestMouseMove.x,
+        y: this.latestMouseMove.y,
+      });
+      this.latestMouseMove = null;
+    }
+
+    if (this.batchQueue.length === 0) return;
+
+    if (this.batchQueue.length === 1) {
+      this.sendDirect(this.batchQueue[0]);
+    } else {
+      this.sendDirect({
+        type: "batch",
+        events: this.batchQueue,
+      });
+    }
+    this.batchQueue = [];
+  }
+
   onMouseMove(e) {
     if (!this.isEnabled) return;
     const coords = this.getNormalizedCoords(e);
-    this.pendingMove = coords;
-
-    const now = performance.now();
-    if (now - this.lastMoveTime > 16) { // ~60fps throttle
-      this.lastMoveTime = now;
-      this.sendEvent({
-        type: "mouse_move",
-        x: coords.x,
-        y: coords.y,
-      });
-      this.pendingMove = null;
-    } else if (!this.rafId) {
-      this.rafId = requestAnimationFrame(() => {
-        if (this.pendingMove) {
-          this.sendEvent({
-            type: "mouse_move",
-            x: this.pendingMove.x,
-            y: this.pendingMove.y,
-          });
-          this.pendingMove = null;
-          this.lastMoveTime = performance.now();
-        }
-        this.rafId = null;
-      });
-    }
+    // Coalesce high-frequency mousemove events into a single 60Hz sample
+    this.latestMouseMove = coords;
+    this.scheduleFlush();
   }
 
   onMouseDown(e) {
     if (!this.isEnabled) return;
     const coords = this.getNormalizedCoords(e);
-    this.sendEvent({
+    this.latestMouseMove = coords;
+    this.batchQueue.push({
       type: "mouse_down",
       button: e.button,
       x: coords.x,
       y: coords.y,
     });
+    // Immediately flush on click for zero latency
+    this.flushBatch();
   }
 
   onMouseUp(e) {
     if (!this.isEnabled) return;
     const coords = this.getNormalizedCoords(e);
-    this.sendEvent({
+    this.latestMouseMove = coords;
+    this.batchQueue.push({
       type: "mouse_up",
       button: e.button,
       x: coords.x,
       y: coords.y,
     });
+    this.flushBatch();
   }
 
   onWheel(e) {
     if (!this.isEnabled) return;
     e.preventDefault();
-    this.sendEvent({
+    this.batchQueue.push({
       type: "mouse_wheel",
       deltaX: e.deltaX,
       deltaY: e.deltaY,
     });
+    this.scheduleFlush();
   }
 
   onContextMenu(e) {
@@ -177,7 +198,7 @@ export class InputCapture {
       e.preventDefault();
     }
 
-    this.sendEvent({
+    this.batchQueue.push({
       type: "key_down",
       key: e.key,
       code: e.code,
@@ -186,29 +207,36 @@ export class InputCapture {
       shiftKey: e.shiftKey,
       metaKey: e.metaKey,
     });
+    this.flushBatch();
   }
 
   onKeyUp(e) {
     if (!this.isEnabled) return;
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
 
-    this.sendEvent({
+    this.batchQueue.push({
       type: "key_up",
       key: e.key,
       code: e.code,
     });
+    this.flushBatch();
   }
 
   sendShortcut(name) {
-    this.sendEvent({
+    this.batchQueue.push({
       type: "shortcut",
       name,
     });
+    this.flushBatch();
+  }
+
+  sendDirect(payload) {
+    if (this.webrtc) {
+      this.webrtc.send("control", payload);
+    }
   }
 
   sendEvent(event) {
-    if (this.webrtc) {
-      this.webrtc.send("control", event);
-    }
+    this.sendDirect(event);
   }
 }
