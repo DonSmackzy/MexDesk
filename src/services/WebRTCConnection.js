@@ -196,7 +196,8 @@ export class WebRTCConnection {
     // Listen for peer ice-restart-request over signaling
     if (this.signaling) {
       this.signaling.on("ice-restart-request", async (msg) => {
-        if (msg.senderId === this.targetPeerId && this.isInitiator) {
+        const sender = msg.senderId || msg.from;
+        if (sender === this.targetPeerId && this.isInitiator) {
           console.log(`[WebRTC] Peer requested ICE restart, renewing offer...`);
           await this.restartIce();
         }

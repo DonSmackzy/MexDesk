@@ -94,8 +94,9 @@ export function App() {
     }
   });
 
-  // LAN Discovery
+  // LAN Discovery & Presence
   const [lanPeers, setLanPeers] = useState([]);
+  const [peerPresence, setPeerPresence] = useState({});
   const [optOutDiscovery, setOptOutDiscovery] = useState(
     () => localStorage.getItem("mexdesk_opt_out_discovery") === "true"
   );
@@ -123,6 +124,7 @@ export function App() {
   const removeSession = useCallback((peerId) => {
     setSessions((prev) => {
       const next = { ...prev };
+      const wasHost = prev[peerId]?.role === "host";
       // Cleanup WebRTC
       if (next[peerId]?.webrtc) {
         next[peerId].webrtc.close();
@@ -136,6 +138,13 @@ export function App() {
       const remainingHostSessions = Object.values(next).some((s) => s.role === "host");
       if (!remainingHostSessions && window.mexdeskAPI?.updateSessionControlState) {
         window.mexdeskAPI.updateSessionControlState(false, false);
+      }
+      // Auto-lock Windows workstation on session disconnect if host session ended
+      if (wasHost && !remainingHostSessions) {
+        if (localStorage.getItem("aegisdesk_autolock_on_disconnect") === "true") {
+          console.log("[AegisDesk] Host session disconnected - Auto-locking Windows workstation...");
+          window.mexdeskAPI?.lockWorkstation?.();
+        }
       }
       return next;
     });
@@ -338,6 +347,12 @@ export function App() {
       }
     });
 
+    client.on("presence-results", (presenceMap) => {
+      if (presenceMap && typeof presenceMap === "object") {
+        setPeerPresence((prev) => ({ ...prev, ...presenceMap }));
+      }
+    });
+
     client.on("alias-updated", (data) => {
       setMyAlias(data.alias);
       localStorage.setItem("mexdesk_my_alias", data.alias);
@@ -401,6 +416,7 @@ export function App() {
 
       let reconnectIntervalTimer = null;
       let reconnectHardDeadlineTimer = null;
+      let disconnectGraceTimer = null;
       let currentAttempts = 0;
 
       const attemptRecovery = () => {
@@ -416,6 +432,10 @@ export function App() {
       rtc.on("connection-state", (state) => {
         console.log(`[AegisDesk] Caller session state for ${targetId}:`, state);
         if (state === "connected") {
+          if (disconnectGraceTimer) {
+            clearTimeout(disconnectGraceTimer);
+            disconnectGraceTimer = null;
+          }
           if (reconnectIntervalTimer) {
             clearInterval(reconnectIntervalTimer);
             reconnectIntervalTimer = null;
@@ -430,26 +450,34 @@ export function App() {
             reconnectAttempt: 0,
           });
         } else if (state === "disconnected" || state === "failed") {
-          if (!reconnectHardDeadlineTimer) {
-            attemptRecovery();
-
-            reconnectIntervalTimer = setInterval(() => {
-              if (currentAttempts < 5) {
+          // 3.5s grace period to prevent false alarms during initial candidate negotiation
+          if (!disconnectGraceTimer && !reconnectHardDeadlineTimer) {
+            disconnectGraceTimer = setTimeout(() => {
+              disconnectGraceTimer = null;
+              const currentState = rtc.peerConnection?.connectionState;
+              if (currentState === "disconnected" || currentState === "failed") {
                 attemptRecovery();
-              } else {
-                if (reconnectIntervalTimer) clearInterval(reconnectIntervalTimer);
-              }
-            }, 5000);
 
-            reconnectHardDeadlineTimer = setTimeout(() => {
-              if (reconnectIntervalTimer) clearInterval(reconnectIntervalTimer);
-              handleCloseSession(
-                targetId,
-                "Connection lost: remote desk did not respond after 5 reconnection attempts."
-              );
-            }, 30000);
+                reconnectIntervalTimer = setInterval(() => {
+                  if (currentAttempts < 5) {
+                    attemptRecovery();
+                  } else {
+                    if (reconnectIntervalTimer) clearInterval(reconnectIntervalTimer);
+                  }
+                }, 5000);
+
+                reconnectHardDeadlineTimer = setTimeout(() => {
+                  if (reconnectIntervalTimer) clearInterval(reconnectIntervalTimer);
+                  handleCloseSession(
+                    targetId,
+                    "Connection lost: remote desk did not respond after 5 reconnection attempts."
+                  );
+                }, 30000);
+              }
+            }, 3500);
           }
         } else if (state === "closed") {
+          if (disconnectGraceTimer) clearTimeout(disconnectGraceTimer);
           handleCloseSession(targetId, "Remote desk closed connection.");
         }
       });
@@ -484,11 +512,14 @@ export function App() {
 
     // Offer received (Host Side)
     client.on("offer", async (data) => {
-      // Route offer to the correct session's WebRTC instance
+      const sender = data.senderId || data.from || data.peerId;
+      console.log(`[AegisDesk] WebRTC offer received from ${sender}`);
       setSessions((prev) => {
-        const session = Object.values(prev).find((s) => s.webrtc?.remotePeerId === data.from || s.id === data.from);
+        const session = prev[sender] || Object.values(prev).find((s) => s.id === sender || s.webrtc?.targetPeerId === sender);
         if (session?.webrtc) {
           session.webrtc.handleOffer(data.sdp);
+        } else {
+          console.warn(`[AegisDesk] No active session found for incoming offer from ${sender}`);
         }
         return prev;
       });
@@ -496,10 +527,14 @@ export function App() {
 
     // Answer received (Caller Side)
     client.on("answer", async (data) => {
+      const sender = data.senderId || data.from || data.peerId;
+      console.log(`[AegisDesk] WebRTC answer received from ${sender}`);
       setSessions((prev) => {
-        const session = Object.values(prev).find((s) => s.webrtc?.remotePeerId === data.from || s.id === data.from);
+        const session = prev[sender] || Object.values(prev).find((s) => s.id === sender || s.webrtc?.targetPeerId === sender);
         if (session?.webrtc) {
           session.webrtc.handleAnswer(data.sdp);
+        } else {
+          console.warn(`[AegisDesk] No active session found for incoming answer from ${sender}`);
         }
         return prev;
       });
@@ -507,8 +542,9 @@ export function App() {
 
     // ICE candidate received
     client.on("ice-candidate", async (data) => {
+      const sender = data.senderId || data.from || data.peerId;
       setSessions((prev) => {
-        const session = Object.values(prev).find((s) => s.webrtc?.remotePeerId === data.from || s.id === data.from);
+        const session = prev[sender] || Object.values(prev).find((s) => s.id === sender || s.webrtc?.targetPeerId === sender);
         if (session?.webrtc) {
           session.webrtc.handleIceCandidate(data.candidate);
         }
@@ -518,7 +554,7 @@ export function App() {
 
     // Session ended by remote peer
     client.on("session-ended", (data) => {
-      const peerId = data.peerId || data.from;
+      const peerId = data.peerId || data.senderId || data.from;
       if (peerId) {
         handleCloseSession(peerId, data.reason || "Session ended by remote desk.");
       }
@@ -662,6 +698,7 @@ export function App() {
 
       let hostReconnectIntervalTimer = null;
       let hostReconnectHardDeadlineTimer = null;
+      let hostDisconnectGraceTimer = null;
       let hostAttempts = 0;
 
       const attemptHostRecovery = () => {
@@ -677,6 +714,10 @@ export function App() {
       rtc.on("connection-state", (state) => {
         console.log(`[AegisDesk] Host session state for ${callerId}:`, state);
         if (state === "connected") {
+          if (hostDisconnectGraceTimer) {
+            clearTimeout(hostDisconnectGraceTimer);
+            hostDisconnectGraceTimer = null;
+          }
           if (hostReconnectIntervalTimer) {
             clearInterval(hostReconnectIntervalTimer);
             hostReconnectIntervalTimer = null;
@@ -691,26 +732,34 @@ export function App() {
             reconnectAttempt: 0,
           });
         } else if (state === "disconnected" || state === "failed") {
-          if (!hostReconnectHardDeadlineTimer) {
-            attemptHostRecovery();
-
-            hostReconnectIntervalTimer = setInterval(() => {
-              if (hostAttempts < 5) {
+          // 3.5s grace period to prevent false alarms during initial candidate negotiation
+          if (!hostDisconnectGraceTimer && !hostReconnectHardDeadlineTimer) {
+            hostDisconnectGraceTimer = setTimeout(() => {
+              hostDisconnectGraceTimer = null;
+              const currentState = rtc.peerConnection?.connectionState;
+              if (currentState === "disconnected" || currentState === "failed") {
                 attemptHostRecovery();
-              } else {
-                if (hostReconnectIntervalTimer) clearInterval(hostReconnectIntervalTimer);
-              }
-            }, 5000);
 
-            hostReconnectHardDeadlineTimer = setTimeout(() => {
-              if (hostReconnectIntervalTimer) clearInterval(hostReconnectIntervalTimer);
-              handleCloseSession(
-                callerId,
-                "Connection lost: remote peer could not be reached after 5 recovery attempts."
-              );
-            }, 30000);
+                hostReconnectIntervalTimer = setInterval(() => {
+                  if (hostAttempts < 5) {
+                    attemptHostRecovery();
+                  } else {
+                    if (hostReconnectIntervalTimer) clearInterval(hostReconnectIntervalTimer);
+                  }
+                }, 5000);
+
+                hostReconnectHardDeadlineTimer = setTimeout(() => {
+                  if (hostReconnectIntervalTimer) clearInterval(hostReconnectIntervalTimer);
+                  handleCloseSession(
+                    callerId,
+                    "Connection lost: remote peer could not be reached after 5 recovery attempts."
+                  );
+                }, 30000);
+              }
+            }, 3500);
           }
         } else if (state === "closed") {
+          if (hostDisconnectGraceTimer) clearTimeout(hostDisconnectGraceTimer);
           handleCloseSession(callerId, "Remote desk closed connection.");
         }
       });
@@ -917,6 +966,8 @@ export function App() {
           onOpenSettings={() => setShowSettings(true)}
           lanPeers={lanPeers}
           onRefreshLanPeers={() => signalingRef.current?.discoverLan()}
+          peerPresence={peerPresence}
+          onQueryPresence={(ids) => signalingRef.current?.queryPresence(ids)}
         />
       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Copy,
   Check,
@@ -19,6 +19,14 @@ import {
   Tag,
   AlertCircle,
   Wifi,
+  BookOpen,
+  Plus,
+  Upload,
+  Download,
+  Search,
+  Server,
+  HardDrive,
+  Users,
 } from "lucide-react";
 import AegisLogo from "./AegisLogo";
 
@@ -38,6 +46,8 @@ export function HomeScreen({
   onOpenSettings,
   lanPeers = [],
   onRefreshLanPeers,
+  peerPresence = {},
+  onQueryPresence,
 }) {
   const [remoteIdInput, setRemoteIdInput] = useState(initialConnectTo || "");
   const [copied, setCopied] = useState(false);
@@ -54,6 +64,60 @@ export function HomeScreen({
       ? "discovered"
       : "recent";
   });
+
+  // Address Book & Categorized Presence State
+  const [addressBook, setAddressBook] = useState(() => {
+    try {
+      const saved = localStorage.getItem("aegisdesk_address_book");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      {
+        id: "addr-1",
+        name: "Production Server",
+        deskId: "482-901-325",
+        group: "Work Servers",
+        notes: "Primary Cloud Windows Server",
+      },
+      {
+        id: "addr-2",
+        name: "Office Workstation",
+        deskId: "512-349-881",
+        group: "Office PCs",
+        notes: "Headquarters Desktop",
+      },
+      {
+        id: "addr-3",
+        name: "Home Lab NAS",
+        deskId: "773-102-490",
+        group: "Home Lab",
+        notes: "Media & Storage Server",
+      },
+    ];
+  });
+  const [selectedGroup, setSelectedGroup] = useState("All");
+  const [addressBookSearch, setAddressBookSearch] = useState("");
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [editingContactId, setEditingContactId] = useState(null);
+  const [contactFormName, setContactFormName] = useState("");
+  const [contactFormDeskId, setContactFormDeskId] = useState("");
+  const [contactFormGroup, setContactFormGroup] = useState("Work Servers");
+  const [contactFormCustomGroup, setContactFormCustomGroup] = useState("");
+  const [contactFormNotes, setContactFormNotes] = useState("");
+  const [addressBookMessage, setAddressBookMessage] = useState("");
+  const importFileRef = useRef(null);
+
+  useEffect(() => {
+    if (!onQueryPresence || !addressBook.length) return;
+    const deskIds = addressBook.map((c) => c.deskId);
+    onQueryPresence(deskIds);
+
+    const interval = setInterval(() => {
+      onQueryPresence(deskIds);
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [activeSessionsTab, addressBook, onQueryPresence]);
 
   const handleCopy = () => {
     if (!myId) return;
@@ -87,6 +151,144 @@ export function HomeScreen({
     if (!idToUse) return;
 
     onConnect(idToUse, type);
+  };
+
+  const PRESET_GROUPS = ["All", "Work Servers", "Office PCs", "Home Lab", "Clients"];
+  const allGroups = Array.from(new Set([...PRESET_GROUPS, ...addressBook.map((c) => c.group).filter(Boolean)]));
+
+  const filteredContacts = addressBook.filter((contact) => {
+    const matchesGroup = selectedGroup === "All" || contact.group === selectedGroup;
+    const q = addressBookSearch.trim().toLowerCase();
+    if (!q) return matchesGroup;
+    const matchesSearch =
+      (contact.name && contact.name.toLowerCase().includes(q)) ||
+      (contact.deskId && contact.deskId.toLowerCase().includes(q)) ||
+      (contact.notes && contact.notes.toLowerCase().includes(q)) ||
+      (contact.group && contact.group.toLowerCase().includes(q));
+    return matchesGroup && matchesSearch;
+  });
+
+  const handleOpenAddContact = () => {
+    setEditingContactId(null);
+    setContactFormName("");
+    setContactFormDeskId("");
+    setContactFormGroup("Work Servers");
+    setContactFormCustomGroup("");
+    setContactFormNotes("");
+    setIsContactModalOpen(true);
+  };
+
+  const handleOpenEditContact = (contact) => {
+    setEditingContactId(contact.id);
+    setContactFormName(contact.name || "");
+    setContactFormDeskId(contact.deskId || "");
+    if (["Work Servers", "Office PCs", "Home Lab", "Clients"].includes(contact.group)) {
+      setContactFormGroup(contact.group);
+      setContactFormCustomGroup("");
+    } else {
+      setContactFormGroup("Custom");
+      setContactFormCustomGroup(contact.group || "");
+    }
+    setContactFormNotes(contact.notes || "");
+    setIsContactModalOpen(true);
+  };
+
+  const handleSaveContactSubmit = (e) => {
+    e.preventDefault();
+    const name = contactFormName.trim();
+    const deskId = contactFormDeskId.trim();
+    if (!name || !deskId) return;
+
+    const group =
+      contactFormGroup === "Custom"
+        ? contactFormCustomGroup.trim() || "Custom"
+        : contactFormGroup;
+
+    if (editingContactId) {
+      setAddressBook((prev) => {
+        const next = prev.map((c) =>
+          c.id === editingContactId
+            ? { ...c, name, deskId, group, notes: contactFormNotes.trim() }
+            : c
+        );
+        localStorage.setItem("aegisdesk_address_book", JSON.stringify(next));
+        return next;
+      });
+      setAddressBookMessage("Contact updated successfully!");
+    } else {
+      const newContact = {
+        id: "addr-" + Date.now(),
+        name,
+        deskId,
+        group,
+        notes: contactFormNotes.trim(),
+      };
+      setAddressBook((prev) => {
+        const next = [newContact, ...prev];
+        localStorage.setItem("aegisdesk_address_book", JSON.stringify(next));
+        return next;
+      });
+      setAddressBookMessage("New contact added to Address Book!");
+    }
+
+    setTimeout(() => setAddressBookMessage(""), 2500);
+    setIsContactModalOpen(false);
+    if (onQueryPresence) {
+      setTimeout(() => onQueryPresence([deskId]), 300);
+    }
+  };
+
+  const handleDeleteContact = (contactId) => {
+    setAddressBook((prev) => {
+      const next = prev.filter((c) => c.id !== contactId);
+      localStorage.setItem("aegisdesk_address_book", JSON.stringify(next));
+      return next;
+    });
+    setAddressBookMessage("Contact removed.");
+    setTimeout(() => setAddressBookMessage(""), 2500);
+  };
+
+  const handleExportJSON = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(addressBook, null, 2));
+    const a = document.createElement("a");
+    a.href = dataStr;
+    a.download = `aegisdesk-addressbook-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setAddressBookMessage("Address book exported to JSON!");
+    setTimeout(() => setAddressBookMessage(""), 2500);
+  };
+
+  const handleImportJSON = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target.result);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter((c) => c && c.name && c.deskId);
+          if (valid.length > 0) {
+            setAddressBook(valid);
+            localStorage.setItem("aegisdesk_address_book", JSON.stringify(valid));
+            setAddressBookMessage(`Imported ${valid.length} contacts successfully!`);
+            if (onQueryPresence) {
+              onQueryPresence(valid.map((c) => c.deskId));
+            }
+          } else {
+            setAddressBookMessage("No valid contacts found in JSON.");
+          }
+        } else {
+          setAddressBookMessage("Invalid address book JSON format.");
+        }
+      } catch (err) {
+        setAddressBookMessage("Failed to parse JSON file.");
+      }
+      setTimeout(() => setAddressBookMessage(""), 3000);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   return (
@@ -396,6 +598,22 @@ export function HomeScreen({
                 {lanPeers.length}
               </span>
             </button>
+
+            {/* Tab: Address Book */}
+            <button
+              onClick={() => setActiveSessionsTab("addressbook")}
+              className={`flex items-center space-x-2 pb-1 font-semibold text-xs transition border-b-2 cursor-pointer ${
+                activeSessionsTab === "addressbook"
+                  ? "border-[#818CF8] text-white"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <BookOpen size={15} />
+              <span>Address Book</span>
+              <span className="text-[11px] bg-[#4F46E5] text-white px-2 py-0.5 rounded-full font-medium">
+                {addressBook.length}
+              </span>
+            </button>
           </div>
 
           {activeSessionsTab === "discovered" && onRefreshLanPeers && (
@@ -407,6 +625,53 @@ export function HomeScreen({
               <RefreshCw size={13} />
               <span>Rescan Network</span>
             </button>
+          )}
+
+          {activeSessionsTab === "addressbook" && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleOpenAddContact}
+                className="flex items-center space-x-1 px-2.5 py-1 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
+              >
+                <Plus size={13} />
+                <span>Add Contact</span>
+              </button>
+
+              <button
+                onClick={handleExportJSON}
+                className="flex items-center space-x-1 px-2.5 py-1 bg-[#243048] hover:bg-[#2D3C5A] text-slate-300 border border-[#334155] rounded-lg text-xs font-medium transition cursor-pointer"
+                title="Export address book to JSON backup"
+              >
+                <Download size={13} />
+                <span>Export</span>
+              </button>
+
+              <button
+                onClick={() => importFileRef.current?.click()}
+                className="flex items-center space-x-1 px-2.5 py-1 bg-[#243048] hover:bg-[#2D3C5A] text-slate-300 border border-[#334155] rounded-lg text-xs font-medium transition cursor-pointer"
+                title="Import address book from JSON backup"
+              >
+                <Upload size={13} />
+                <span>Import</span>
+              </button>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportJSON}
+                className="hidden"
+              />
+
+              {onQueryPresence && (
+                <button
+                  onClick={() => onQueryPresence(addressBook.map((c) => c.deskId))}
+                  className="p-1.5 text-slate-400 hover:text-[#818CF8] transition cursor-pointer"
+                  title="Check live presence status"
+                >
+                  <RefreshCw size={13} />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -587,6 +852,197 @@ export function HomeScreen({
             </div>
           )
         )}
+
+        {/* TAB CONTENT: ADDRESS BOOK */}
+        {activeSessionsTab === "addressbook" && (
+          <div className="space-y-4">
+            {addressBookMessage && (
+              <div className="p-2.5 bg-emerald-950/40 border border-emerald-800 text-emerald-400 text-xs rounded-lg flex items-center space-x-2">
+                <Check size={14} />
+                <span>{addressBookMessage}</span>
+              </div>
+            )}
+
+            {/* Address Book Filters: Groups & Search */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
+              {/* Group filter chips */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                {allGroups.map((grp) => {
+                  const count =
+                    grp === "All"
+                      ? addressBook.length
+                      : addressBook.filter((c) => c.group === grp).length;
+                  const isSelected = selectedGroup === grp;
+                  return (
+                    <button
+                      key={grp}
+                      onClick={() => setSelectedGroup(grp)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center space-x-1.5 ${
+                        isSelected
+                          ? "bg-[#4F46E5] text-white shadow-sm"
+                          : "bg-[#0F172A] text-slate-400 hover:text-white border border-[#334155]"
+                      }`}
+                    >
+                      <span>{grp}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          isSelected ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Search input */}
+              <div className="relative min-w-[200px] max-w-xs">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  value={addressBookSearch}
+                  onChange={(e) => setAddressBookSearch(e.target.value)}
+                  placeholder="Filter by name, ID, or tag..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#818CF8] focus:ring-1 focus:ring-[#818CF8] transition"
+                />
+                {addressBookSearch && (
+                  <button
+                    onClick={() => setAddressBookSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Contacts Grid */}
+            {filteredContacts.length === 0 ? (
+              <div className="text-center py-10 text-slate-400">
+                <div className="w-12 h-12 rounded-full bg-[#0F172A] border border-[#334155] text-slate-400 flex items-center justify-center mx-auto mb-2">
+                  <BookOpen size={22} />
+                </div>
+                <h3 className="text-xs font-semibold text-slate-300">No contacts found</h3>
+                <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                  {addressBook.length === 0
+                    ? "Add bookmarks for your remote workstations, cloud servers, or client desks."
+                    : "No bookmarks match your search or selected group filter."}
+                </p>
+                <button
+                  onClick={handleOpenAddContact}
+                  className="mt-3 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
+                >
+                  <Plus size={13} />
+                  <span>Add First Contact</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {filteredContacts.map((contact) => {
+                  const presence = peerPresence[contact.deskId];
+                  const isOnline = !!presence?.online;
+
+                  return (
+                    <div
+                      key={contact.id}
+                      className="group p-3.5 rounded-xl border border-[#334155] bg-[#243048]/40 hover:bg-[#243048] hover:border-[#818CF8]/50 transition flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Top: Group Tag and Live Status */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#1E293B] border border-[#334155] text-[#818CF8]">
+                            {contact.group || "Work Servers"}
+                          </span>
+
+                          {/* Live Presence Indicator - Offline is bright red (#EF4444) */}
+                          {isOnline ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#16A34A]/20 text-[#16A34A] border border-[#16A34A]/30">
+                              <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse"></span>
+                              <span>Online</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/30">
+                              <span className="w-2 h-2 rounded-full bg-[#EF4444]"></span>
+                              <span>Offline</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Name and Desk ID */}
+                        <div className="flex items-center space-x-2.5 mb-2">
+                          <div className="w-9 h-9 rounded-lg bg-[#0F172A] border border-[#334155] flex items-center justify-center text-[#818CF8] shrink-0">
+                            {contact.group === "Work Servers" ? (
+                              <Server size={18} />
+                            ) : contact.group === "Home Lab" ? (
+                              <HardDrive size={18} />
+                            ) : (
+                              <Monitor size={18} />
+                            )}
+                          </div>
+                          <div className="overflow-hidden flex-1 min-w-0">
+                            <h3 className="text-xs font-bold text-white truncate" title={contact.name}>
+                              {contact.name}
+                            </h3>
+                            <p className="text-[11px] font-mono text-slate-400 truncate">
+                              {contact.deskId}
+                            </p>
+                          </div>
+                        </div>
+
+                        {contact.notes && (
+                          <p className="text-[11px] text-slate-400 line-clamp-1 mb-2 italic">
+                            {contact.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center justify-between pt-2 border-t border-[#334155]/60 mt-2">
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => handleOpenEditContact(contact)}
+                            className="p-1.5 text-slate-400 hover:text-[#818CF8] hover:bg-[#1E293B] rounded-lg transition cursor-pointer"
+                            title="Edit contact"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteContact(contact.id)}
+                            className="p-1.5 text-slate-400 hover:text-[#EF4444] hover:bg-[#3F1D28] rounded-lg transition cursor-pointer"
+                            title="Delete bookmark"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={() => handleStartConnect("file-transfer-only", contact.deskId)}
+                            className="p-1.5 text-slate-300 hover:text-white bg-[#1E293B] hover:bg-[#253248] border border-[#334155] rounded-lg text-xs transition cursor-pointer"
+                            title="Transfer files"
+                          >
+                            <FolderSync size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleStartConnect("full-control", contact.deskId)}
+                            className="flex items-center space-x-1 px-3 py-1 bg-[#818CF8] hover:bg-[#6366F1] text-slate-950 font-bold text-xs rounded-lg shadow-sm transition cursor-pointer"
+                          >
+                            <span>Connect</span>
+                            <ArrowRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* FEATURE SHOWCASE CARDS */}
@@ -628,38 +1084,113 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/* COLOR SYSTEM (Exact specification from design reference) */}
-      <div className="bg-[#1E293B] border border-[#334155] rounded-2xl p-4 shadow-sm">
-        <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">
-          Color System
-        </h4>
-        <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-xs font-medium">
-          <div className="flex items-center space-x-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#4F46E5] inline-block shadow-sm"></span>
-            <span className="text-slate-300">Primary <span className="font-mono text-slate-400 font-normal">#4F46E5</span></span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#4338CA] inline-block shadow-sm"></span>
-            <span className="text-slate-300">Hover / active <span className="font-mono text-slate-400 font-normal">#4338CA</span></span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#EEF2FF] inline-block shadow-sm border border-slate-600"></span>
-            <span className="text-slate-300">Tint (chips, bg) <span className="font-mono text-slate-400 font-normal">#EEF2FF</span></span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#16A34A] inline-block shadow-sm"></span>
-            <span className="text-slate-300">Online / success <span className="font-mono text-slate-400 font-normal">#16A34A</span> <span className="text-slate-500 font-normal">— unchanged</span></span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#EF4444] inline-block shadow-sm"></span>
-            <span className="text-slate-300">Destructive only <span className="font-mono text-slate-400 font-normal">#EF4444</span> <span className="text-slate-500 font-normal">— reserved</span></span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="w-3.5 h-3.5 rounded-full bg-[#0F172A] inline-block shadow-sm border border-slate-600"></span>
-            <span className="text-slate-300">Ink / text <span className="font-mono text-slate-400 font-normal">#0F172A</span></span>
+      {/* ADD / EDIT CONTACT MODAL */}
+      {isContactModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-[#1E293B] rounded-2xl border border-[#334155] shadow-2xl w-full max-w-md p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#334155] pb-3">
+              <div className="flex items-center space-x-2">
+                <BookOpen size={18} className="text-[#818CF8]" />
+                <h3 className="text-sm font-bold text-white">
+                  {editingContactId ? "Edit Contact" : "Add Address Book Entry"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsContactModalOpen(false)}
+                className="text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveContactSubmit} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  Device / Contact Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={contactFormName}
+                  onChange={(e) => setContactFormName(e.target.value)}
+                  placeholder="e.g. Production Web Server"
+                  className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#818CF8] focus:ring-1 focus:ring-[#818CF8]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  AegisDesk ID or Alias *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={contactFormDeskId}
+                  onChange={(e) => setContactFormDeskId(e.target.value)}
+                  placeholder="e.g. 482-901-325 or boss-mezie@aegis"
+                  className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 font-mono focus:outline-none focus:border-[#818CF8] focus:ring-1 focus:ring-[#818CF8]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  Category / Group
+                </label>
+                <select
+                  value={contactFormGroup}
+                  onChange={(e) => setContactFormGroup(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white focus:outline-none focus:border-[#818CF8]"
+                >
+                  <option value="Work Servers" className="bg-[#0F172A] text-white">Work Servers</option>
+                  <option value="Office PCs" className="bg-[#0F172A] text-white">Office PCs</option>
+                  <option value="Home Lab" className="bg-[#0F172A] text-white">Home Lab</option>
+                  <option value="Clients" className="bg-[#0F172A] text-white">Clients</option>
+                  <option value="Custom" className="bg-[#0F172A] text-white">Custom Group...</option>
+                </select>
+
+                {contactFormGroup === "Custom" && (
+                  <input
+                    type="text"
+                    value={contactFormCustomGroup}
+                    onChange={(e) => setContactFormCustomGroup(e.target.value)}
+                    placeholder="Enter custom category name..."
+                    className="mt-2 w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#818CF8]"
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={contactFormNotes}
+                  onChange={(e) => setContactFormNotes(e.target.value)}
+                  placeholder="e.g. AWS EC2 Windows instance"
+                  className="w-full px-3 py-2 bg-[#0F172A] border border-[#334155] rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#818CF8]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#334155]">
+                <button
+                  type="button"
+                  onClick={() => setIsContactModalOpen(false)}
+                  className="px-3.5 py-1.5 text-xs text-slate-400 hover:text-white transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer"
+                >
+                  {editingContactId ? "Save Changes" : "Add to Address Book"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

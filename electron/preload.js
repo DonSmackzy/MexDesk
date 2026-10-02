@@ -42,6 +42,23 @@ contextBridge.exposeInMainWorld("mexdeskAPI", {
     return await ipcRenderer.invoke("get-system-info");
   },
 
+  // Unattended Access & Background Daemon
+  getAutoStart: async () => {
+    return await ipcRenderer.invoke("get-auto-start");
+  },
+  setAutoStart: async (enabled) => {
+    return await ipcRenderer.invoke("set-auto-start", enabled);
+  },
+  getCloseToTray: async () => {
+    return await ipcRenderer.invoke("get-close-to-tray");
+  },
+  setCloseToTray: async (enabled) => {
+    return await ipcRenderer.invoke("set-close-to-tray", enabled);
+  },
+  lockWorkstation: async () => {
+    return await ipcRenderer.invoke("system-lock-workstation");
+  },
+
   // Listeners
   onRemoteInputEvent: (callback) => {
     ipcRenderer.on("remote-input-event", (_, data) => callback(data));

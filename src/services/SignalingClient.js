@@ -144,6 +144,9 @@ export class SignalingClient {
       case "query-peer-result":
         this.trigger("query-peer-result", msg);
         break;
+      case "presence-results":
+        this.trigger("presence-results", msg.presence || {});
+        break;
       default:
         this.trigger(msg.type, msg);
     }
@@ -205,6 +208,10 @@ export class SignalingClient {
 
   queryPeer(targetId) {
     this.send({ type: "query-peer", targetId });
+  }
+
+  queryPresence(peerIds) {
+    this.send({ type: "query-presence", peerIds });
   }
 
   discoverLan() {

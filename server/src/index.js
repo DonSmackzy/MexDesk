@@ -544,6 +544,36 @@ function handleMessage(ws, msg) {
         break;
       }
 
+      case "query-presence": {
+        // Query live online status for a list of peer IDs or aliases
+        const peerIds = Array.isArray(msg.peerIds) ? msg.peerIds : [];
+        const presence = {};
+        for (const query of peerIds) {
+          if (!query) continue;
+          const target = findPeer(query);
+          if (target) {
+            presence[query] = {
+              online: true,
+              id: target.id,
+              alias: target.alias || "",
+              status: target.status || "available"
+            };
+          } else {
+            presence[query] = {
+              online: false,
+              id: query,
+              alias: "",
+              status: "offline"
+            };
+          }
+        }
+        sendTo(ws, {
+          type: "presence-results",
+          presence
+        });
+        break;
+      }
+
       case "set-discovery-pref": {
         const peerId = socketToPeerId.get(ws);
         if (peerId && peers.has(peerId)) {
@@ -702,7 +732,7 @@ function handleMessage(ws, msg) {
                 callerAlias: msg.callerAlias || "Remote User"
               });
 
-              console.log(`[MexDesk Server] Unattended session authorized: ${callerId} -> ${targetId}`);
+              console.log(`[AegisDesk Server] Unattended session authorized: ${callerId} -> ${targetId}`);
               return;
             } else {
               recordFailedAttempt(rateLimitKey);
@@ -833,6 +863,7 @@ function handleMessage(ws, msg) {
           sendToPeer(targetId, {
             type: "offer",
             senderId,
+            from: senderId,
             sdp: msg.sdp
           });
         } else {
@@ -850,6 +881,7 @@ function handleMessage(ws, msg) {
           sendToPeer(targetId, {
             type: "answer",
             senderId,
+            from: senderId,
             sdp: msg.sdp
           });
         } else {
@@ -867,6 +899,7 @@ function handleMessage(ws, msg) {
           sendToPeer(targetId, {
             type: "ice-candidate",
             senderId,
+            from: senderId,
             candidate: msg.candidate
           });
         } else {
@@ -883,7 +916,8 @@ function handleMessage(ws, msg) {
         if (sender && sender.sessionWith === targetId) {
           sendToPeer(targetId, {
             type: "ice-restart-request",
-            senderId
+            senderId,
+            from: senderId
           });
         }
         break;

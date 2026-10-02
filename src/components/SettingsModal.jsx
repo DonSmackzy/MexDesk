@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Lock,
@@ -10,6 +10,7 @@ import {
   Check,
   Server,
   Download,
+  Power,
 } from "lucide-react";
 import AegisLogo from "./AegisLogo";
 
@@ -34,6 +35,50 @@ export function SettingsModal({
   const [qualityProfile, setQualityProfile] = useState(localStorage.getItem("mexdesk_quality_profile") || "adaptive");
   const [localUpdatePref, setLocalUpdatePref] = useState(updatePref);
   const [savedMessage, setSavedMessage] = useState("");
+  const [autoStart, setAutoStart] = useState(false);
+  const [closeToTray, setCloseToTray] = useState(true);
+  const [autoLockOnDisconnect, setAutoLockOnDisconnect] = useState(
+    () => localStorage.getItem("aegisdesk_autolock_on_disconnect") === "true"
+  );
+  const [isLocking, setIsLocking] = useState(false);
+
+  useEffect(() => {
+    if (window.mexdeskAPI?.getAutoStart) {
+      window.mexdeskAPI.getAutoStart().then((val) => setAutoStart(!!val)).catch(() => {});
+    }
+    if (window.mexdeskAPI?.getCloseToTray) {
+      window.mexdeskAPI.getCloseToTray().then((val) => setCloseToTray(!!val)).catch(() => {});
+    }
+  }, []);
+
+  const handleToggleAutoStart = async (val) => {
+    setAutoStart(val);
+    if (window.mexdeskAPI?.setAutoStart) {
+      await window.mexdeskAPI.setAutoStart(val);
+    }
+  };
+
+  const handleToggleCloseToTray = async (val) => {
+    setCloseToTray(val);
+    if (window.mexdeskAPI?.setCloseToTray) {
+      await window.mexdeskAPI.setCloseToTray(val);
+    }
+  };
+
+  const handleToggleAutoLock = (val) => {
+    setAutoLockOnDisconnect(val);
+    localStorage.setItem("aegisdesk_autolock_on_disconnect", val ? "true" : "false");
+  };
+
+  const handleTestLock = async () => {
+    setIsLocking(true);
+    if (window.mexdeskAPI?.lockWorkstation) {
+      await window.mexdeskAPI.lockWorkstation();
+    } else {
+      alert("Lock Workstation is available in the desktop Windows application.");
+    }
+    setTimeout(() => setIsLocking(false), 1000);
+  };
 
   const handleSaveSecurity = (e) => {
     e.preventDefault();
@@ -192,6 +237,77 @@ export function SettingsModal({
                     <div className="text-[11px] text-slate-400 leading-snug">
                       <strong className="text-white font-semibold block">Cryptographic Protection Active</strong>
                       Passwords are salt-hashed with scrypt and protected by automated 60s lockout after 5 failed attempts.
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-[#334155]/60 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Power size={14} className="text-[#818CF8]" />
+                      <span>24/7 Unattended Daemon & System Security</span>
+                    </h4>
+
+                    {/* Auto-Start on Windows Boot */}
+                    <label className="flex items-start space-x-3 p-3 bg-[#0F172A] border border-[#334155] rounded-xl cursor-pointer hover:border-[#818CF8]/50 transition">
+                      <input
+                        type="checkbox"
+                        checked={autoStart}
+                        onChange={(e) => handleToggleAutoStart(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded border-[#334155] text-[#818CF8] focus:ring-[#818CF8]"
+                      />
+                      <div className="flex-1 text-xs">
+                        <div className="font-semibold text-white">Start AegisDesk on Windows Boot</div>
+                        <div className="text-slate-400 text-[11px] mt-0.5">
+                          Launches minimized in the background at system startup so this server is always accessible remotely.
+                        </div>
+                      </div>
+                    </label>
+
+                    {/* Minimize to System Tray */}
+                    <label className="flex items-start space-x-3 p-3 bg-[#0F172A] border border-[#334155] rounded-xl cursor-pointer hover:border-[#818CF8]/50 transition">
+                      <input
+                        type="checkbox"
+                        checked={closeToTray}
+                        onChange={(e) => handleToggleCloseToTray(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded border-[#334155] text-[#818CF8] focus:ring-[#818CF8]"
+                      />
+                      <div className="flex-1 text-xs">
+                        <div className="font-semibold text-white">Keep Running in System Tray on Close</div>
+                        <div className="text-slate-400 text-[11px] mt-0.5">
+                          Closing the window hides AegisDesk to the Windows system tray daemon instead of terminating the app.
+                        </div>
+                      </div>
+                    </label>
+
+                    {/* Auto-Lock Workstation on Disconnect */}
+                    <label className="flex items-start space-x-3 p-3 bg-[#0F172A] border border-[#334155] rounded-xl cursor-pointer hover:border-[#818CF8]/50 transition">
+                      <input
+                        type="checkbox"
+                        checked={autoLockOnDisconnect}
+                        onChange={(e) => handleToggleAutoLock(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded border-[#334155] text-[#818CF8] focus:ring-[#818CF8]"
+                      />
+                      <div className="flex-1 text-xs">
+                        <div className="font-semibold text-white">Auto-Lock Workstation on Session Disconnect</div>
+                        <div className="text-slate-400 text-[11px] mt-0.5">
+                          Automatically triggers Windows Lock Screen (Win+L) when a remote controller ends their session.
+                        </div>
+                      </div>
+                    </label>
+
+                    {/* Test Lock Workstation */}
+                    <div className="flex items-center justify-between p-3 bg-[#0F172A] border border-[#334155] rounded-xl">
+                      <div>
+                        <div className="text-xs font-semibold text-white">Lock Windows Workstation Now</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">Test native Win32 LockWorkStation injection</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTestLock}
+                        disabled={isLocking}
+                        className="px-3 py-1.5 bg-[#243048] hover:bg-[#2D3C5A] border border-[#334155] text-slate-200 text-xs font-semibold rounded-lg transition cursor-pointer"
+                      >
+                        {isLocking ? "Locking..." : "Lock Now"}
+                      </button>
                     </div>
                   </div>
                 </div>

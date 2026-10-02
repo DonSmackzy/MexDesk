@@ -31,6 +31,7 @@ class InputController {
         this.OpenInputDesktop = this.user32.func("uintptr OpenInputDesktop(uint32 dwFlags, int fInherit, uint32 dwDesiredAccess)");
         this.SetThreadDesktop = this.user32.func("int SetThreadDesktop(uintptr hDesktop)");
         this.CloseDesktop = this.user32.func("int CloseDesktop(uintptr hDesktop)");
+        this.LockWorkStation = this.user32.func("int LockWorkStation()");
 
         this.isNativeAvailable = true;
         this.refreshScreenMetrics();
@@ -39,6 +40,19 @@ class InputController {
         console.warn("[MexDesk Input] Native input injection unavailable:", err.message);
       }
     }
+  }
+
+  lockWorkstation() {
+    if (this.LockWorkStation) {
+      try {
+        console.log("[AegisDesk Input] Locking Windows workstation (LockWorkStation)...");
+        return Boolean(this.LockWorkStation());
+      } catch (err) {
+        console.error("[AegisDesk Input] LockWorkStation error:", err);
+        return false;
+      }
+    }
+    return false;
   }
 
   refreshScreenMetrics() {

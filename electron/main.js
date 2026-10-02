@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, desktopCapturer, clipboard, dialog, screen, session } = require("electron");
+const { app, BrowserWindow, ipcMain, desktopCapturer, clipboard, dialog, screen, session, Tray, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs").promises;
 const os = require("os");
@@ -10,16 +10,73 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 app.commandLine.appendSwitch("enable-zero-copy");
 
 let mainWindow = null;
+let tray = null;
+let isQuitting = false;
+let closeToTray = true;
+
+function createTray() {
+  if (tray) return;
+  const iconPath = path.join(__dirname, "../public/icon.ico");
+  try {
+    tray = new Tray(iconPath);
+  } catch (e) {
+    try {
+      tray = new Tray(path.join(__dirname, "../public/icon.png"));
+    } catch (e2) {
+      console.warn("[AegisDesk Tray] Failed to initialize tray icon:", e2.message);
+      return;
+    }
+  }
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Open AegisDesk",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.focus();
+        }
+      },
+    },
+    {
+      label: "Lock Workstation",
+      click: () => {
+        inputController.lockWorkstation();
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Exit AegisDesk",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setToolTip("AegisDesk - Enterprise Remote Desktop");
+  tray.setContextMenu(contextMenu);
+  tray.on("double-click", () => {
+    if (mainWindow) {
+      mainWindow.show();
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
 
 function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const isHiddenStartup = process.argv.includes("--hidden");
 
   mainWindow = new BrowserWindow({
     width: Math.min(1280, screenWidth - 100),
     height: Math.min(840, screenHeight - 80),
     minWidth: 980,
     minHeight: 640,
+    show: !isHiddenStartup,
     frame: false, // Frameless window with AnyDesk styled custom title bar
     title: "AegisDesk",
     icon: path.join(__dirname, "../public/icon.ico"),
@@ -41,9 +98,15 @@ function createWindow() {
     console.log(`[Renderer ${level}] ${message} (${src}:${line})`);
   });
 
-  // Log navigation load failures
+  // Log navigation load failures and fallback to local bundle
   mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
     console.error(`[AegisDesk Main] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+    if (validatedURL && validatedURL.startsWith(CLOUD_URL)) {
+      console.warn("[AegisDesk Main] Cloud load failed, falling back to local bundle...");
+      mainWindow.loadFile(localIndexPath).catch((err) => {
+        console.error("[AegisDesk Main] Local load fallback also failed:", err.message);
+      });
+    }
   });
 
   // F12 or Ctrl+Shift+I toggles DevTools for diagnostics (dev mode only)
@@ -99,12 +162,23 @@ function createWindow() {
       });
     });
   } else {
-    // PRODUCTION: Always load the bundled local app directly for instant launch, dark theme, and zero stale cloud caching
-    console.log(`[AegisDesk Main] Loading local app: ${localIndexPath}`);
-    mainWindow.loadFile(localIndexPath).catch((err) => {
-      console.error("[AegisDesk Main] Local load failed:", err.message);
+    // PRODUCTION: Load live app from cloud over the internet for automatic zero-touch updates.
+    // If offline or cloud is unreachable, automatically fall back to the bundled local app.
+    console.log(`[AegisDesk Main] Loading live app from cloud: ${CLOUD_URL}`);
+    mainWindow.loadURL(CLOUD_URL).catch((err) => {
+      console.warn(`[AegisDesk Main] Cloud load failed (${err.message}), falling back to local bundle`);
+      mainWindow.loadFile(localIndexPath).catch((localErr) => {
+        console.error("[AegisDesk Main] Local fallback also failed:", localErr.message);
+      });
     });
   }
+
+  mainWindow.on("close", (event) => {
+    if (closeToTray && !isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -156,6 +230,7 @@ if (!gotTheLock) {
       });
     }
 
+    createTray();
     createWindow();
 
     app.on("activate", () => {
@@ -163,6 +238,10 @@ if (!gotTheLock) {
     });
   });
 }
+
+app.on("before-quit", () => {
+  isQuitting = true;
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -313,4 +392,45 @@ ipcMain.handle("get-system-info", () => {
     release: os.release(),
     username: os.userInfo().username,
   };
+});
+
+// Auto-Start at Boot IPC Handlers (Unattended Access Daemon)
+ipcMain.handle("get-auto-start", () => {
+  try {
+    const settings = app.getLoginItemSettings();
+    return settings.openAtLogin;
+  } catch (err) {
+    console.error("[AegisDesk Main] get-auto-start error:", err.message);
+    return false;
+  }
+});
+
+ipcMain.handle("set-auto-start", (_, enabled) => {
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: Boolean(enabled),
+      openAsHidden: true,
+      path: process.execPath,
+      args: ["--hidden"],
+    });
+    console.log(`[AegisDesk Main] Auto-start set to: ${enabled}`);
+    return true;
+  } catch (err) {
+    console.error("[AegisDesk Main] set-auto-start error:", err.message);
+    return false;
+  }
+});
+
+ipcMain.handle("get-close-to-tray", () => {
+  return closeToTray;
+});
+
+ipcMain.handle("set-close-to-tray", (_, enabled) => {
+  closeToTray = Boolean(enabled);
+  console.log(`[AegisDesk Main] Close-to-tray set to: ${closeToTray}`);
+  return closeToTray;
+});
+
+ipcMain.handle("system-lock-workstation", () => {
+  return inputController.lockWorkstation();
 });
