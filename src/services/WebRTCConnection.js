@@ -23,6 +23,7 @@ export class WebRTCConnection {
     this.statsTimer = null;
 
     this.candidateQueue = [];
+    this._wasEverConnected = false;
 
     // Adaptive quality and rate control
     this.qualityMode = localStorage.getItem("mexdesk_quality_profile") || "auto";
@@ -188,7 +189,11 @@ export class WebRTCConnection {
       const iceState = this.peerConnection.iceConnectionState;
       console.log(`[WebRTC] ICE Connection state: ${iceState}`);
       this.trigger("ice-connection-state", iceState);
-      if (iceState === "failed") {
+      if (iceState === "connected" || iceState === "completed") {
+        this._wasEverConnected = true;
+      }
+      if (iceState === "failed" && this._wasEverConnected) {
+        // Only auto-restart if we were previously connected — avoid interfering with initial negotiation
         this.restartIce().catch((err) => console.warn("[WebRTC] Auto restartIce failed:", err));
       }
     };

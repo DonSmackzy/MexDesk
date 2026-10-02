@@ -450,7 +450,7 @@ export function App() {
             reconnectAttempt: 0,
           });
         } else if (state === "disconnected" || state === "failed") {
-          // 3.5s grace period to prevent false alarms during initial candidate negotiation
+          // 8s grace period to prevent false alarms during initial ICE/STUN/TURN negotiation over internet
           if (!disconnectGraceTimer && !reconnectHardDeadlineTimer) {
             disconnectGraceTimer = setTimeout(() => {
               disconnectGraceTimer = null;
@@ -474,7 +474,7 @@ export function App() {
                   );
                 }, 30000);
               }
-            }, 3500);
+            }, 8000);
           }
         } else if (state === "closed") {
           if (disconnectGraceTimer) clearTimeout(disconnectGraceTimer);
@@ -732,7 +732,7 @@ export function App() {
             reconnectAttempt: 0,
           });
         } else if (state === "disconnected" || state === "failed") {
-          // 3.5s grace period to prevent false alarms during initial candidate negotiation
+          // 8s grace period to prevent false alarms during initial ICE/STUN/TURN negotiation over internet
           if (!hostDisconnectGraceTimer && !hostReconnectHardDeadlineTimer) {
             hostDisconnectGraceTimer = setTimeout(() => {
               hostDisconnectGraceTimer = null;
@@ -756,7 +756,7 @@ export function App() {
                   );
                 }, 30000);
               }
-            }, 3500);
+            }, 8000);
           }
         } else if (state === "closed") {
           if (hostDisconnectGraceTimer) clearTimeout(hostDisconnectGraceTimer);

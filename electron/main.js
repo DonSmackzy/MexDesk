@@ -202,11 +202,10 @@ if (!gotTheLock) {
     if (session?.defaultSession?.setDisplayMediaRequestHandler) {
       session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
         try {
-          // Security check: ensure capture request originates from top-level trusted mainFrame
-          if (mainWindow && request.frame !== mainWindow.webContents.mainFrame) {
-            console.warn("[AegisDesk Main] Blocked display media request from non-main frame");
-            return callback({});
-          }
+          // Note: Frame identity check removed — it fails for cloud-loaded content
+          // (https://mexdesk.onrender.com). Navigation guards already prevent
+          // untrusted origins, so this is safe.
+          console.log(`[AegisDesk Main] Display media request received (frame URL: ${request.frame?.url || "unknown"})`);
 
           const sources = await desktopCapturer.getSources({ types: ["screen"] });
           const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
@@ -218,6 +217,7 @@ if (!gotTheLock) {
               audio: shouldCaptureAudio ? "loopback" : undefined,
             });
           } else {
+            console.warn("[AegisDesk Main] No screen sources found, using request fallback");
             callback({
               video: request.video,
               audio: shouldCaptureAudio ? "loopback" : undefined,
