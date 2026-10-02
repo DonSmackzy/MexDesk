@@ -13,6 +13,7 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 let closeToTray = true;
+const CLOUD_URL = "https://mexdesk.onrender.com";
 
 function createTray() {
   if (tray) return;
@@ -67,6 +68,8 @@ function createTray() {
 }
 
 function createWindow() {
+  const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
+  const localIndexPath = path.join(__dirname, "../dist/index.html");
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
   const isHiddenStartup = process.argv.includes("--hidden");
@@ -149,10 +152,6 @@ function createWindow() {
   });
 
   // Load URL: Cloud primary in production, Vite dev server in development
-  const CLOUD_URL = "https://mexdesk.onrender.com";
-  const devUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
-  const localIndexPath = path.join(__dirname, "../dist/index.html");
-
   if (process.env.NODE_ENV === "development" && !app.isPackaged) {
     // DEV MODE: Vite dev server → fallback to local dist
     mainWindow.loadURL(devUrl).catch(() => {
