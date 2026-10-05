@@ -640,20 +640,31 @@ export function App() {
       try {
         stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
-            cursor: "always",
+            cursor: "never", // Local cursor prediction: do not bake cursor into video frames
             frameRate: { ideal: 60, max: 60 },
           },
           audio: permissions.audio !== false,
         });
       } catch (audioErr) {
         console.warn("[AegisDesk] getDisplayMedia with audio failed, falling back to video-only:", audioErr);
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: "always",
-            frameRate: { ideal: 60, max: 60 },
-          },
-          audio: false,
-        });
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: "never",
+              frameRate: { ideal: 60, max: 60 },
+            },
+            audio: false,
+          });
+        } catch (cursorErr) {
+          // Fallback to cursor: always if platform restricts cursor: never
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: "always",
+              frameRate: { ideal: 60, max: 60 },
+            },
+            audio: false,
+          });
+        }
       }
 
       // If initial permissions have audio disabled, mute audio tracks immediately

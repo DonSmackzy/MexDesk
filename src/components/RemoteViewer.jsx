@@ -22,6 +22,7 @@ import {
   RefreshCw,
   Gauge,
   Zap,
+  MousePointer,
 } from "lucide-react";
 import { InputCapture } from "../services/InputCapture";
 import { WhiteboardOverlay } from "./WhiteboardOverlay";
@@ -78,6 +79,24 @@ export function RemoteViewer({
   // Live dynamic permissions
   const [livePermissions, setLivePermissions] = useState(permissions);
   const [permissionNotice, setPermissionNotice] = useState("");
+
+  // Local Predicted Cursor state & ref (0ms perceived latency)
+  const cursorRef = useRef(null);
+  const [localCursorEnabled, setLocalCursorEnabled] = useState(true);
+
+  const handleContainerMouseMove = (e) => {
+    if (e.clientY <= 45) {
+      setIsToolbarHidden(false);
+      resetHideTimer();
+    }
+    if (cursorRef.current && containerRef.current && localCursorEnabled && livePermissions?.control) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      cursorRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      cursorRef.current.style.opacity = "1";
+    }
+  };
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
@@ -253,15 +272,43 @@ export function RemoteViewer({
   return (
     <div
       ref={containerRef}
-      onMouseMove={(e) => {
-        if (e.clientY <= 45) {
-          setIsToolbarHidden(false);
-          resetHideTimer();
+      onMouseMove={handleContainerMouseMove}
+      onMouseEnter={() => {
+        if (cursorRef.current && localCursorEnabled && livePermissions?.control) {
+          cursorRef.current.style.opacity = "1";
         }
       }}
-      className="relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden select-none outline-none"
+      onMouseLeave={() => {
+        if (cursorRef.current) {
+          cursorRef.current.style.opacity = "0";
+        }
+      }}
+      className={`relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden select-none outline-none ${
+        localCursorEnabled && livePermissions?.control ? "cursor-none" : ""
+      }`}
       tabIndex={0}
     >
+      {/* LOCAL PREDICTED CURSOR (0ms Perceived Input Latency) */}
+      {livePermissions?.control && localCursorEnabled && (
+        <div
+          ref={cursorRef}
+          className="pointer-events-none absolute top-0 left-0 z-40 will-change-transform transition-opacity duration-100"
+          style={{
+            opacity: 0,
+            transform: "translate3d(-100px, -100px, 0)",
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="drop-shadow-md">
+            <path
+              d="M3 3L10.5 21L13.5 13.5L21 10.5L3 3Z"
+              fill="#FFFFFF"
+              stroke="#0F172A"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      )}
       {/* Remote Screen Video View */}
       <video
         ref={videoRef}
@@ -436,6 +483,24 @@ export function RemoteViewer({
             <span className="capitalize">{scaleMode}</span>
           </button>
         </div>
+
+        {/* Local Cursor Prediction Toggle */}
+        <button
+          onClick={() => setLocalCursorEnabled((prev) => !prev)}
+          className={`flex items-center gap-1 px-2 py-1 rounded transition-colors text-xs font-medium cursor-pointer ${
+            localCursorEnabled
+              ? "text-secondary hover:bg-surface-container-high"
+              : "text-on-surface-variant hover:bg-surface-container-high opacity-70"
+          }`}
+          title={
+            localCursorEnabled
+              ? "Local Cursor Prediction Active (0ms perceived input lag - Click to disable)"
+              : "Local Cursor Disabled (Host cursor only - Click to enable)"
+          }
+        >
+          <MousePointer size={13} className={localCursorEnabled ? "text-secondary" : "text-tertiary"} />
+          <span className="hidden sm:inline">Cursor</span>
+        </button>
 
         {/* Streaming Quality Dropdown */}
         <div className="relative">
