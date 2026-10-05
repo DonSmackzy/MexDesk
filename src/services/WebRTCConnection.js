@@ -142,8 +142,11 @@ export class WebRTCConnection {
             }
             // "maintain-resolution": Prioritize sharp text and UI lines over frame drops during congestion
             params.degradationPreference = qualityProfile === "motion" ? "maintain-framerate" : "maintain-resolution";
-            if (fpsLimit > 0) {
-              params.encodings[0].maxFramerate = fpsLimit;
+            if (params.encodings && params.encodings[0]) {
+              params.encodings[0].scaleResolutionDownBy = 1.0;
+              if (fpsLimit > 0) {
+                params.encodings[0].maxFramerate = fpsLimit;
+              }
             }
             sender.setParameters(params).catch(() => {});
           } catch (e) {
@@ -508,11 +511,11 @@ export class WebRTCConnection {
 
   applyTier(tier) {
     const tiers = {
-      4: { maxBitrate: 4500000, maxFramerate: 60, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
-      3: { maxBitrate: 2800000, maxFramerate: 60, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
-      2: { maxBitrate: 1500000, maxFramerate: 30, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
-      1: { maxBitrate: 750000, maxFramerate: 24, scaleResolutionDownBy: 1.25, degradationPreference: "maintain-framerate" },
-      0: { maxBitrate: 350000, maxFramerate: 15, scaleResolutionDownBy: 1.75, degradationPreference: "maintain-framerate" },
+      4: { maxBitrate: 5000000, maxFramerate: 60, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
+      3: { maxBitrate: 3000000, maxFramerate: 60, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
+      2: { maxBitrate: 1800000, maxFramerate: 30, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
+      1: { maxBitrate: 900000, maxFramerate: 24, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
+      0: { maxBitrate: 450000, maxFramerate: 15, scaleResolutionDownBy: 1.0, degradationPreference: "maintain-resolution" },
     };
     const settings = tiers[tier] || tiers[4];
     this.applyEncodingParameters(settings);

@@ -369,11 +369,11 @@ export function RemoteViewer({
         muted={isMuted}
         onLoadedMetadata={() => videoRef.current?.play().catch(() => {})}
         onCanPlay={() => videoRef.current?.play().catch(() => {})}
-        className={`max-w-full max-h-full transition-all duration-150 ${
+        className={`w-full h-full select-none pointer-events-auto ${
           scaleMode === "original"
             ? "object-none"
             : scaleMode === "stretch"
-            ? "w-full h-full object-fill"
+            ? "object-fill"
             : "object-contain"
         }`}
       />

@@ -656,6 +656,8 @@ export function App() {
           video: {
             cursor: "never", // Local cursor prediction: do not bake cursor into video frames
             frameRate: { ideal: 60, max: 60 },
+            width: { ideal: 1920, max: 3840 },
+            height: { ideal: 1080, max: 2160 },
           },
           audio: permissions.audio !== false,
         });
@@ -666,6 +668,8 @@ export function App() {
             video: {
               cursor: "never",
               frameRate: { ideal: 60, max: 60 },
+              width: { ideal: 1920, max: 3840 },
+              height: { ideal: 1080, max: 2160 },
             },
             audio: false,
           });
@@ -675,6 +679,8 @@ export function App() {
             video: {
               cursor: "always",
               frameRate: { ideal: 60, max: 60 },
+              width: { ideal: 1920, max: 3840 },
+              height: { ideal: 1080, max: 2160 },
             },
             audio: false,
           });
@@ -741,6 +747,8 @@ export function App() {
               video: {
                 cursor: "never",
                 frameRate: { ideal: 60, max: 60 },
+                width: { ideal: 1920, max: 3840 },
+                height: { ideal: 1080, max: 2160 },
               },
               audio: false,
             });
