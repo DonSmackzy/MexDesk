@@ -94,12 +94,14 @@ export function RemoteViewer({
       setIsToolbarHidden(false);
       resetHideTimer();
     }
-    if (cursorRef.current && containerRef.current && localCursorEnabled && livePermissions?.control) {
+    if (cursorRef.current && containerRef.current && localCursorEnabled && livePermissions?.control && connectionState === "connected") {
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       cursorRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
       cursorRef.current.style.opacity = "1";
+    } else if (cursorRef.current) {
+      cursorRef.current.style.opacity = "0";
     }
   };
 
@@ -325,23 +327,19 @@ export function RemoteViewer({
     <div
       ref={containerRef}
       onMouseMove={handleContainerMouseMove}
-      onMouseEnter={() => {
-        if (cursorRef.current && localCursorEnabled && livePermissions?.control) {
-          cursorRef.current.style.opacity = "1";
-        }
-      }}
+      onMouseEnter={() => {}}
       onMouseLeave={() => {
         if (cursorRef.current) {
           cursorRef.current.style.opacity = "0";
         }
       }}
       className={`relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden select-none outline-none ${
-        localCursorEnabled && livePermissions?.control ? "cursor-none" : ""
+        localCursorEnabled && livePermissions?.control && connectionState === "connected" ? "cursor-none" : ""
       }`}
       tabIndex={0}
     >
       {/* LOCAL PREDICTED CURSOR (0ms Perceived Input Latency) */}
-      {livePermissions?.control && localCursorEnabled && (
+      {livePermissions?.control && localCursorEnabled && connectionState === "connected" && (
         <div
           ref={cursorRef}
           className="pointer-events-none absolute top-0 left-0 z-40 will-change-transform transition-opacity duration-100"
@@ -393,35 +391,35 @@ export function RemoteViewer({
         </div>
       )}
 
-      {/* Reconnection In-Progress HUD Overlay */}
+      {/* Reconnection In-Progress Non-Blocking HUD (AnyDesk-style) */}
       {connectionState === "reconnecting" && (
-        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center text-white z-30 animate-in fade-in duration-200">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mb-4 shadow-xl">
-            <RefreshCw size={32} className="text-amber-400 animate-spin" />
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 bg-[#0F172A]/95 border border-amber-500/50 text-amber-300 px-5 py-2.5 rounded-2xl text-xs font-semibold shadow-2xl flex items-center space-x-3.5 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+            <RefreshCw size={16} className="text-amber-400 animate-spin" />
           </div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <span>Connection Interrupted</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono font-medium">
-              Attempt {reconnectAttempt} of 5
-            </span>
-          </h3>
-          <p className="text-xs text-slate-400 mt-1.5 max-w-sm text-center">
-            Attempting to restore WebRTC connection via ICE restart. Please hold on...
-          </p>
-          <div className="flex items-center space-x-3 mt-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white">Connection Interrupted</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono border border-amber-500/30">
+                Attempt {reconnectAttempt} of 5
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-normal mt-0.5">
+              Restoring media flow via ICE restart. Screen remains active.
+            </p>
+          </div>
+          <div className="flex items-center space-x-1.5 pl-2 border-l border-slate-700/60">
             <button
               onClick={onRetryConnection}
-              className="px-4 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold rounded-xl transition flex items-center gap-2 shadow-md cursor-pointer"
+              className="px-3 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold rounded-lg transition shadow-sm cursor-pointer"
             >
-              <RefreshCw size={13} />
-              <span>Retry Now</span>
+              Retry Now
             </button>
             <button
               onClick={onDisconnect}
-              className="px-4 py-2 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-semibold rounded-xl transition flex items-center gap-2 shadow-md cursor-pointer"
+              className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-semibold rounded-lg transition cursor-pointer"
             >
-              <Square size={12} className="fill-white" />
-              <span>End Session</span>
+              End
             </button>
           </div>
         </div>
