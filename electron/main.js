@@ -14,6 +14,7 @@ let tray = null;
 let isQuitting = false;
 let closeToTray = true;
 const CLOUD_URL = "https://mexdesk.onrender.com";
+let currentCaptureSourceId = null;
 
 function createTray() {
   if (tray) return;
@@ -208,12 +209,19 @@ if (!gotTheLock) {
           console.log(`[AegisDesk Main] Display media request received (frame URL: ${request.frame?.url || "unknown"})`);
 
           const sources = await desktopCapturer.getSources({ types: ["screen"] });
-          const primarySource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
+          let selectedSource = null;
+          if (currentCaptureSourceId) {
+            selectedSource = sources.find((s) => s.id === currentCaptureSourceId);
+          }
+          if (!selectedSource) {
+            selectedSource = sources.find((s) => s.id.startsWith("screen")) || sources[0];
+          }
+
           const shouldCaptureAudio = process.platform === "win32";
-          if (primarySource) {
-            console.log(`[AegisDesk Main] Seamlessly capturing screen & loopback audio: ${primarySource.name} (${primarySource.id})`);
+          if (selectedSource) {
+            console.log(`[AegisDesk Main] Seamlessly capturing screen & loopback audio: ${selectedSource.name} (${selectedSource.id})`);
             callback({
-              video: primarySource,
+              video: selectedSource,
               audio: shouldCaptureAudio ? "loopback" : undefined,
             });
           } else {
@@ -278,6 +286,34 @@ ipcMain.handle("get-screen-sources", async () => {
     console.error("[AegisDesk Main] Failed to fetch screen sources:", err.message);
     return [];
   }
+});
+
+ipcMain.handle("get-displays", async () => {
+  try {
+    const displays = screen.getAllDisplays();
+    const primary = screen.getPrimaryDisplay();
+    const sources = await desktopCapturer.getSources({ types: ["screen"] });
+    return displays.map((d, index) => {
+      const matchingSource = sources.find((s) => s.display_id === String(d.id)) || sources[index];
+      return {
+        id: d.id,
+        sourceId: matchingSource ? matchingSource.id : `screen:${index}:0`,
+        name: matchingSource ? matchingSource.name : `Display ${index + 1}`,
+        bounds: d.bounds,
+        isPrimary: d.id === primary.id,
+      };
+    });
+  } catch (err) {
+    console.error("[AegisDesk Main] Failed to fetch displays:", err.message);
+    return [];
+  }
+});
+
+ipcMain.handle("set-active-display", async (event, { sourceId, bounds }) => {
+  currentCaptureSourceId = sourceId || null;
+  inputController.setActiveDisplayBounds(bounds || null);
+  console.log(`[AegisDesk Main] Switched active display: sourceId=${sourceId}, bounds=`, bounds);
+  return true;
 });
 
 const ALLOWED_INPUT_TYPES = [

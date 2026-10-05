@@ -701,7 +701,71 @@ export function App() {
 
       hostPermissionsRef.current[callerId] = { ...permissions };
 
-      rtc.on("control-message", (event) => {
+      const sendDisplayList = async () => {
+        if (window.mexdeskAPI?.getDisplays) {
+          try {
+            const displays = await window.mexdeskAPI.getDisplays();
+            if (displays && displays.length > 0) {
+              rtc.send("control", {
+                type: "display-list",
+                displays,
+                activeSourceId: displays[0]?.sourceId,
+              });
+              console.log("[AegisDesk Host] Sent display-list to viewer:", displays.length, "displays");
+            }
+          } catch (err) {
+            console.warn("[AegisDesk Host] Error fetching displays:", err);
+          }
+        }
+      };
+
+      rtc.on("channel-open", ({ name }) => {
+        if (name === "control") {
+          sendDisplayList();
+        }
+      });
+
+      rtc.on("control-message", async (event) => {
+        if (event.type === "request-display-list") {
+          await sendDisplayList();
+          return;
+        }
+
+        if (event.type === "select-display") {
+          console.log("[AegisDesk Host] Remote requested display switch:", event);
+          try {
+            if (window.mexdeskAPI?.setActiveDisplay) {
+              await window.mexdeskAPI.setActiveDisplay(event.sourceId, event.bounds);
+            }
+            const newStream = await navigator.mediaDevices.getDisplayMedia({
+              video: {
+                cursor: "never",
+                frameRate: { ideal: 60, max: 60 },
+              },
+              audio: false,
+            });
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            if (newVideoTrack && rtc.peerConnection) {
+              const videoSender = rtc.peerConnection.getSenders().find((s) => s.track && s.track.kind === "video");
+              if (videoSender) {
+                const oldTrack = videoSender.track;
+                await videoSender.replaceTrack(newVideoTrack);
+                if (oldTrack) oldTrack.stop();
+                if (stream) {
+                  const oldVideo = stream.getVideoTracks()[0];
+                  if (oldVideo) stream.removeTrack(oldVideo);
+                  stream.addTrack(newVideoTrack);
+                }
+                rtc.send("control", { type: "display-switched", sourceId: event.sourceId, bounds: event.bounds });
+                console.log("[AegisDesk Host] Successfully replaced video track with display:", event.sourceId);
+              }
+            }
+          } catch (switchErr) {
+            console.warn("[AegisDesk Host] Failed to switch display:", switchErr);
+          }
+          return;
+        }
+
         const livePerms = hostPermissionsRef.current[callerId] || {};
         if (window.mexdeskAPI && livePerms.control) {
           window.mexdeskAPI.sendInput(event);

@@ -4,9 +4,15 @@ contextBridge.exposeInMainWorld("mexdeskAPI", {
   isElectron: true,
   platform: process.platform,
 
-  // Screen Sources enumeration
+  // Screen Sources & Multi-Monitor enumeration
   getScreenSources: async () => {
     return await ipcRenderer.invoke("get-screen-sources");
+  },
+  getDisplays: async () => {
+    return await ipcRenderer.invoke("get-displays");
+  },
+  setActiveDisplay: async (sourceId, bounds) => {
+    return await ipcRenderer.invoke("set-active-display", { sourceId, bounds });
   },
 
   // Input simulation

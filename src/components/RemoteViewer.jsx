@@ -84,6 +84,11 @@ export function RemoteViewer({
   const cursorRef = useRef(null);
   const [localCursorEnabled, setLocalCursorEnabled] = useState(true);
 
+  // Multi-Monitor Display Switcher state
+  const [remoteDisplays, setRemoteDisplays] = useState([]);
+  const [activeDisplaySourceId, setActiveDisplaySourceId] = useState(null);
+  const [isSwitchingDisplay, setIsSwitchingDisplay] = useState(false);
+
   const handleContainerMouseMove = (e) => {
     if (e.clientY <= 45) {
       setIsToolbarHidden(false);
@@ -117,11 +122,24 @@ export function RemoteViewer({
     setLivePermissions(permissions);
   }, [permissions]);
 
-  // Listen to remote permission updates from host
+  // Listen to remote permission updates & multi-monitor display lists from host
   useEffect(() => {
     if (!webrtc) return;
-    const unsubscribe = webrtc.on("control-message", (msg) => {
-      if (msg && msg.type === "permissions-updated" && msg.permissions) {
+
+    const requestDisplays = () => {
+      webrtc.send("control", { type: "request-display-list" });
+    };
+
+    const unsubChannel = webrtc.on("channel-open", ({ name }) => {
+      if (name === "control") {
+        requestDisplays();
+      }
+    });
+
+    const unsubMsg = webrtc.on("control-message", (msg) => {
+      if (!msg) return;
+
+      if (msg.type === "permissions-updated" && msg.permissions) {
         setLivePermissions(msg.permissions);
         if (!msg.permissions.control) {
           setPermissionNotice("Host paused remote mouse & keyboard control");
@@ -133,9 +151,43 @@ export function RemoteViewer({
         }
         setTimeout(() => setPermissionNotice(""), 4500);
       }
+
+      if (msg.type === "display-list" && Array.isArray(msg.displays)) {
+        console.log("[AegisDesk Viewer] Received remote display list:", msg.displays);
+        setRemoteDisplays(msg.displays);
+        if (msg.activeSourceId) {
+          setActiveDisplaySourceId(msg.activeSourceId);
+        } else if (msg.displays[0]?.sourceId) {
+          setActiveDisplaySourceId(msg.displays[0].sourceId);
+        }
+      }
+
+      if (msg.type === "display-switched") {
+        console.log("[AegisDesk Viewer] Host confirmed display switched to:", msg.sourceId);
+        setActiveDisplaySourceId(msg.sourceId);
+        setIsSwitchingDisplay(false);
+      }
     });
-    return unsubscribe;
+
+    requestDisplays();
+
+    return () => {
+      unsubChannel?.();
+      unsubMsg?.();
+    };
   }, [webrtc]);
+
+  const handleSelectDisplay = (display) => {
+    if (display.sourceId === activeDisplaySourceId || isSwitchingDisplay) return;
+    setIsSwitchingDisplay(true);
+    setActiveDisplaySourceId(display.sourceId);
+    webrtc?.send?.("control", {
+      type: "select-display",
+      sourceId: display.sourceId,
+      displayId: display.id,
+      bounds: display.bounds,
+    });
+  };
 
   // Bind remote stream to video element
   useEffect(() => {
@@ -470,7 +522,39 @@ export function RemoteViewer({
           </div>
         )}
 
-        {/* Display Switcher Dropdown */}
+        {/* AnyDesk Multi-Monitor Display Switcher */}
+        {remoteDisplays.length > 1 && (
+          <div className="flex items-center bg-surface-container-high/80 rounded-lg p-0.5 border border-surface-container-highest">
+            <div className="flex items-center px-1.5 py-0.5 text-on-surface-variant text-[11px] font-medium gap-1" title="Host Displays">
+              <Monitor size={13} className="text-secondary" />
+              <span className="hidden md:inline text-[10px] uppercase font-mono tracking-wider">Monitor</span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              {remoteDisplays.map((disp, idx) => {
+                const isSelected = activeDisplaySourceId
+                  ? disp.sourceId === activeDisplaySourceId
+                  : disp.isPrimary;
+                return (
+                  <button
+                    key={disp.id || idx}
+                    disabled={isSwitchingDisplay}
+                    onClick={() => handleSelectDisplay(disp)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-[#818CF8] text-slate-950 shadow-sm"
+                        : "text-on-surface-variant hover:text-white hover:bg-surface-container"
+                    } ${isSwitchingDisplay && isSelected ? "opacity-60 animate-pulse" : ""}`}
+                    title={`${disp.name || `Monitor ${idx + 1}`} (${disp.bounds?.width}x${disp.bounds?.height})${disp.isPrimary ? " - Primary" : ""}`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Display Scale Mode Toggle */}
         <div className="relative">
           <button
             onClick={() =>
@@ -479,8 +563,7 @@ export function RemoteViewer({
             className="flex items-center gap-1 px-2 py-1 rounded hover:bg-surface-container-high transition-colors text-on-surface text-xs font-medium cursor-pointer"
             title={`Display Scale Mode: ${scaleMode.toUpperCase()} (Click to toggle)`}
           >
-            <Monitor size={14} className="text-tertiary" />
-            <span className="capitalize">{scaleMode}</span>
+            <span className="text-[11px] font-mono capitalize">{scaleMode}</span>
           </button>
         </div>
 

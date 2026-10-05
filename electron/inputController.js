@@ -6,6 +6,7 @@ class InputController {
     this.isWindows = process.platform === "win32";
     this.isNativeAvailable = false;
     this.screenSize = { width: 1920, height: 1080 };
+    this.activeDisplayBounds = null; // null = virtual screen, or { x, y, width, height } for specific monitor
 
     // Win32 API functions
     this.user32 = null;
@@ -86,7 +87,32 @@ class InputController {
     }
   }
 
+  setActiveDisplayBounds(bounds) {
+    if (bounds && bounds.width > 0 && bounds.height > 0) {
+      this.activeDisplayBounds = {
+        x: bounds.x || 0,
+        y: bounds.y || 0,
+        width: bounds.width,
+        height: bounds.height,
+      };
+      console.log(`[AegisDesk Input] Active display bounds set: ${this.activeDisplayBounds.width}x${this.activeDisplayBounds.height} at (${this.activeDisplayBounds.x}, ${this.activeDisplayBounds.y})`);
+    } else {
+      this.activeDisplayBounds = null;
+      console.log("[AegisDesk Input] Active display bounds reset to full virtual screen");
+    }
+  }
+
   translateCoords(normX, normY) {
+    const clampedX = Math.max(0.0, Math.min(1.0, normX));
+    const clampedY = Math.max(0.0, Math.min(1.0, normY));
+
+    // If a specific monitor is actively being viewed/streamed, map coordinates directly to that monitor's bounds
+    if (this.activeDisplayBounds) {
+      const x = Math.round(this.activeDisplayBounds.x + (clampedX * this.activeDisplayBounds.width));
+      const y = Math.round(this.activeDisplayBounds.y + (clampedY * this.activeDisplayBounds.height));
+      return { x, y };
+    }
+
     let originX = 0;
     let originY = 0;
     let screenW = this.screenSize.width;
@@ -102,9 +128,6 @@ class InputController {
         screenH = virtH;
       }
     }
-
-    const clampedX = Math.max(0.0, Math.min(1.0, normX));
-    const clampedY = Math.max(0.0, Math.min(1.0, normY));
 
     const x = Math.round(originX + (clampedX * screenW));
     const y = Math.round(originY + (clampedY * screenH));
