@@ -495,3 +495,21 @@ ipcMain.handle("set-close-to-tray", (_, enabled) => {
 ipcMain.handle("system-lock-workstation", () => {
   return inputController.lockWorkstation();
 });
+
+ipcMain.handle("install-windows-daemon", async () => {
+  if (process.platform !== "win32") return { success: false, message: "Only supported on Windows" };
+  const { exec } = require("child_process");
+  const execPath = process.execPath;
+  const cmd = `schtasks /Create /TN "AegisDesk" /TR "\\"${execPath}\\" --hidden" /SC ONLOGON /RL HIGHEST /F`;
+  return new Promise((resolve) => {
+    exec(cmd, (err, stdout, stderr) => {
+      if (err) {
+        console.warn("[AegisDesk Main] schtasks registration error:", err.message);
+        resolve({ success: false, error: stderr || err.message });
+      } else {
+        console.log("[AegisDesk Main] schtasks registered successfully:", stdout);
+        resolve({ success: true, message: "Elevated background task registered." });
+      }
+    });
+  });
+});

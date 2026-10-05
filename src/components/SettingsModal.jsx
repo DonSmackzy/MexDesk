@@ -93,6 +93,26 @@ export function SettingsModal({
     setTimeout(() => setIsLocking(false), 1000);
   };
 
+  const [daemonStatus, setDaemonStatus] = useState("");
+
+  const handleInstallDaemon = async () => {
+    setDaemonStatus("installing");
+    if (window.mexdeskAPI?.installWindowsDaemon) {
+      const res = await window.mexdeskAPI.installWindowsDaemon();
+      if (res?.success) {
+        setSavedMessage("Elevated 24/7 background service registered!");
+        setDaemonStatus("installed");
+      } else {
+        alert("Failed to register background service: " + (res?.error || "Requires Administrator privileges."));
+        setDaemonStatus("");
+      }
+    } else {
+      alert("Available in the AegisDesk Windows Desktop application.");
+      setDaemonStatus("");
+    }
+    setTimeout(() => setSavedMessage(""), 3000);
+  };
+
   const handleSaveSecurity = (e) => {
     e.preventDefault();
     setPasswordError("");
@@ -346,6 +366,24 @@ export function SettingsModal({
                         className="px-3 py-1.5 bg-[#243048] hover:bg-[#2D3C5A] border border-[#334155] text-slate-200 text-xs font-semibold rounded-lg transition cursor-pointer"
                       >
                         {isLocking ? "Locking..." : "Lock Now"}
+                      </button>
+                    </div>
+
+                    {/* Elevated Background Service */}
+                    <div className="flex items-center justify-between p-3 bg-[#0F172A] border border-[#334155] rounded-xl">
+                      <div>
+                        <div className="text-xs font-semibold text-white">Elevated 24/7 Background Service</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          Runs with high-integrity Administrator privileges to handle UAC prompts and Windows Lock Screen.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleInstallDaemon}
+                        disabled={daemonStatus === "installing"}
+                        className="px-3 py-1.5 bg-[#4F46E5]/20 hover:bg-[#4F46E5]/30 border border-[#818CF8]/40 text-[#818CF8] text-xs font-semibold rounded-lg transition cursor-pointer"
+                      >
+                        {daemonStatus === "installing" ? "Registering..." : daemonStatus === "installed" ? "Registered ✓" : "Register Service"}
                       </button>
                     </div>
                   </div>

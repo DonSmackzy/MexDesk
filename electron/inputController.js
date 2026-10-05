@@ -148,6 +148,9 @@ class InputController {
   async handleEvent(event) {
     if (!event || !event.type) return;
 
+    // Attach to active input desktop (enables input on UAC prompts and Windows Lock Screen)
+    this.attachToInputDesktop();
+
     try {
       switch (event.type) {
         case "mouse_move":

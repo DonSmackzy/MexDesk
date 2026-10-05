@@ -30,7 +30,8 @@
     ],
     "win": {
       "target": "portable",
-      "icon": "public/icon.ico"
+      "icon": "public/icon.ico",
+      "requestedExecutionLevel": "highestAvailable"
     },
     "portable": {
       "artifactName": "AegisDesk.exe"

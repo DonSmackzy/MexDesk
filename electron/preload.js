@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld("mexdeskAPI", {
   lockWorkstation: async () => {
     return await ipcRenderer.invoke("system-lock-workstation");
   },
+  installWindowsDaemon: async () => {
+    return await ipcRenderer.invoke("install-windows-daemon");
+  },
 
   // Listeners
   onRemoteInputEvent: (callback) => {
