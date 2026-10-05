@@ -651,6 +651,9 @@ export function App() {
 
     try {
       let stream;
+      const isTauri = Boolean(window.mexdeskAPI?.isTauri);
+      const shouldCaptureAudio = permissions.audio !== false && !isTauri;
+
       try {
         stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -659,7 +662,9 @@ export function App() {
             width: { ideal: 1920, max: 3840 },
             height: { ideal: 1080, max: 2160 },
           },
-          audio: permissions.audio !== false,
+          audio: shouldCaptureAudio,
+          selfBrowserSurface: "exclude",
+          systemAudio: shouldCaptureAudio ? "include" : "exclude",
         });
       } catch (audioErr) {
         console.warn("[AegisDesk] getDisplayMedia with audio failed, falling back to video-only:", audioErr);
@@ -672,6 +677,8 @@ export function App() {
               height: { ideal: 1080, max: 2160 },
             },
             audio: false,
+            selfBrowserSurface: "exclude",
+            systemAudio: "exclude",
           });
         } catch (cursorErr) {
           // Fallback to cursor: always if platform restricts cursor: never

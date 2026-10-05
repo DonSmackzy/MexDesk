@@ -186,6 +186,16 @@ fn get_displays() -> Result<Vec<DisplayInfo>, String> {
 }
 
 fn main() {
+    // Seamless primary screen capture in WebView2 with ZERO picker prompts (AnyDesk parity)
+    let existing_args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+    let capture_args = "--auto-select-desktop-capture-source=\"Entire screen\" --enable-usermedia-screen-capturing --use-fake-ui-for-media-stream";
+    let combined_args = if existing_args.is_empty() {
+        capture_args.to_string()
+    } else {
+        format!("{} {}", existing_args, capture_args)
+    };
+    std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", combined_args);
+
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             send_input,
