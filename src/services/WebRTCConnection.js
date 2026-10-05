@@ -37,24 +37,27 @@ export class WebRTCConnection {
     } catch (e) {}
 
     this.iceServers = customTurn || [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" },
-      { urls: "stun:stun3.l.google.com:19302" },
-      { urls: "stun:stun4.l.google.com:19302" },
-      { urls: "stun:stun.cloudflare.com:3478" },
-      { urls: "stun:stun.nextcloud.com:443" },
-      { urls: "stun:global.stun.twilio.com:3478" },
+      {
+        urls: [
+          "stun:stun.l.google.com:19302",
+          "stun:stun1.l.google.com:19302",
+          "stun:stun2.l.google.com:19302",
+          "stun:stun3.l.google.com:19302",
+          "stun:stun4.l.google.com:19302",
+          "stun:stun.cloudflare.com:3478",
+          "stun:global.stun.twilio.com:3478",
+        ],
+      },
       // Fallback TURN relay servers
       {
         urls: [
           "turn:openrelay.metered.ca:80",
           "turn:openrelay.metered.ca:443",
-          "turns:openrelay.metered.ca:443?transport=tcp"
+          "turns:openrelay.metered.ca:443?transport=tcp",
         ],
         username: "openrelay",
-        credential: "openrelay"
-      }
+        credential: "openrelay",
+      },
     ];
   }
 
@@ -64,6 +67,9 @@ export class WebRTCConnection {
     this.peerConnection = new RTCPeerConnection({
       iceServers: this.iceServers,
       iceCandidatePoolSize: 10,
+      bundlePolicy: "max-bundle",
+      rtcpMuxPolicy: "require",
+      iceTransportPolicy: "all",
     });
 
     // Collect codec preferences (prioritizing VP9, VP8, H264)
@@ -186,14 +192,35 @@ export class WebRTCConnection {
       }
     };
 
+    let iceDisconnectedTimer = null;
     this.peerConnection.oniceconnectionstatechange = () => {
       const iceState = this.peerConnection.iceConnectionState;
       console.log(`[WebRTC] ICE Connection state: ${iceState}`);
       this.trigger("ice-connection-state", iceState);
       if (iceState === "connected" || iceState === "completed") {
         this._wasEverConnected = true;
+        if (iceDisconnectedTimer) {
+          clearTimeout(iceDisconnectedTimer);
+          iceDisconnectedTimer = null;
+        }
+      }
+      if (iceState === "disconnected" && this._wasEverConnected) {
+        // Fast recovery: If disconnected for 3s, initiate proactive ICE restart without waiting for browser timeout
+        if (!iceDisconnectedTimer) {
+          iceDisconnectedTimer = setTimeout(() => {
+            iceDisconnectedTimer = null;
+            if (this.peerConnection?.iceConnectionState === "disconnected") {
+              console.log("[WebRTC] ICE still disconnected after 3s, initiating fast ICE restart...");
+              this.restartIce().catch((err) => console.warn("[WebRTC] Fast restartIce failed:", err));
+            }
+          }, 3000);
+        }
       }
       if (iceState === "failed" && this._wasEverConnected) {
+        if (iceDisconnectedTimer) {
+          clearTimeout(iceDisconnectedTimer);
+          iceDisconnectedTimer = null;
+        }
         // Only auto-restart if we were previously connected — avoid interfering with initial negotiation
         this.restartIce().catch((err) => console.warn("[WebRTC] Auto restartIce failed:", err));
       }
