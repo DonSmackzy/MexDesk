@@ -11,8 +11,14 @@ import {
   Server,
   Download,
   Power,
+  ShieldCheck,
+  History,
+  FileSpreadsheet,
+  FileJson,
+  Trash2,
 } from "lucide-react";
 import AegisLogo from "./AegisLogo";
+import { auditLogger } from "../services/AuditLogger";
 
 export function SettingsModal({
   unattendedPassword,
@@ -41,6 +47,13 @@ export function SettingsModal({
     () => localStorage.getItem("aegisdesk_autolock_on_disconnect") === "true"
   );
   const [isLocking, setIsLocking] = useState(false);
+  const [auditLogs, setAuditLogs] = useState(() => auditLogger.getLogs());
+
+  useEffect(() => {
+    if (activeTab === "audit") {
+      setAuditLogs(auditLogger.getLogs());
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (window.mexdeskAPI?.getAutoStart) {
@@ -118,6 +131,27 @@ export function SettingsModal({
     setTimeout(() => setSavedMessage(""), 2500);
   };
 
+  const handleExportCSV = () => {
+    auditLogger.exportCSV();
+    setSavedMessage("Audit trail exported as CSV");
+    setTimeout(() => setSavedMessage(""), 2500);
+  };
+
+  const handleExportJSON = () => {
+    auditLogger.exportJSON();
+    setSavedMessage("Audit trail exported as JSON");
+    setTimeout(() => setSavedMessage(""), 2500);
+  };
+
+  const handleClearLogs = () => {
+    if (window.confirm("Are you sure you want to clear all security audit logs?")) {
+      auditLogger.clearLogs();
+      setAuditLogs([]);
+      setSavedMessage("Audit logs cleared");
+      setTimeout(() => setSavedMessage(""), 2500);
+    }
+  };
+
   const tabClass = (tab) =>
     `w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
       activeTab === tab
@@ -166,6 +200,11 @@ export function SettingsModal({
             <button onClick={() => setActiveTab("updates")} className={tabClass("updates")}>
               <Download size={15} />
               <span>Updates</span>
+            </button>
+
+            <button onClick={() => setActiveTab("audit")} className={tabClass("audit")}>
+              <History size={15} />
+              <span>Audit & Logs</span>
             </button>
 
             <button onClick={() => setActiveTab("about")} className={tabClass("about")}>
@@ -478,6 +517,125 @@ export function SettingsModal({
                     AegisDesk loads the latest UI from the cloud on each launch. Updates affect the web-layer interface. The desktop shell updates separately via new executable downloads.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* TAB: AUDIT & LOGS */}
+            {activeTab === "audit" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <ShieldCheck size={18} className="text-[#818CF8]" />
+                      Session Audit Trail
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Tamper-evident session history, elevation events, and file transfer records.
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={handleExportCSV}
+                      disabled={auditLogs.length === 0}
+                      className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#0F172A] hover:bg-[#334155] border border-[#334155] text-slate-200 text-xs font-medium rounded-lg disabled:opacity-40 transition"
+                      title="Export as CSV"
+                    >
+                      <FileSpreadsheet size={13} className="text-emerald-400" />
+                      <span>CSV</span>
+                    </button>
+                    <button
+                      onClick={handleExportJSON}
+                      disabled={auditLogs.length === 0}
+                      className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#0F172A] hover:bg-[#334155] border border-[#334155] text-slate-200 text-xs font-medium rounded-lg disabled:opacity-40 transition"
+                      title="Export as JSON"
+                    >
+                      <FileJson size={13} className="text-amber-400" />
+                      <span>JSON</span>
+                    </button>
+                    <button
+                      onClick={handleClearLogs}
+                      disabled={auditLogs.length === 0}
+                      className="p-1.5 bg-[#0F172A] hover:bg-rose-950/40 border border-[#334155] hover:border-rose-800 text-slate-400 hover:text-rose-400 rounded-lg disabled:opacity-40 transition"
+                      title="Clear audit trail"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {auditLogs.length === 0 ? (
+                  <div className="p-8 bg-[#0F172A] rounded-xl border border-[#334155] text-center flex flex-col items-center justify-center">
+                    <History size={32} className="text-slate-600 mb-2" />
+                    <p className="text-xs font-semibold text-slate-300">No session events recorded yet</p>
+                    <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+                      When you connect, host, transfer files, or alter permissions, entries will be securely logged here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border border-[#334155] rounded-xl overflow-hidden bg-[#0F172A]">
+                    <div className="max-h-[280px] overflow-y-auto divide-y divide-[#334155]/60">
+                      {auditLogs.map((log) => {
+                        const dateStr = new Date(log.timestamp).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        });
+                        const isStart = log.type === "session_start";
+                        const isEnd = log.type === "session_end";
+                        const isFile = log.type === "file_transfer";
+                        const isPerm = log.type === "permission_change";
+
+                        const badgeColor = isStart
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : isEnd
+                          ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                          : isFile
+                          ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          : isPerm
+                          ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                          : "bg-slate-500/10 text-slate-400 border-slate-500/20";
+
+                        const label = isStart
+                          ? "Connected"
+                          : isEnd
+                          ? "Disconnected"
+                          : isFile
+                          ? "Transfer"
+                          : isPerm
+                          ? "Permission"
+                          : log.type;
+
+                        return (
+                          <div key={log.id} className="p-2.5 flex items-start justify-between text-xs hover:bg-[#1E293B]/40 transition">
+                            <div className="flex items-start space-x-2.5">
+                              <span className={`px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider rounded border ${badgeColor}`}>
+                                {label}
+                              </span>
+                              <div>
+                                <div className="text-slate-200 font-medium">
+                                  {log.peerAlias ? `${log.peerAlias} ` : ""}
+                                  <span className="text-slate-400 font-mono text-[11px]">
+                                    ({log.peerId})
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  {isStart && `Role: ${log.details?.mode || "standard"}`}
+                                  {isEnd && `Duration: ${log.details?.durationSeconds || 0}s (${log.details?.reason || "disconnect"})`}
+                                  {isFile && `${log.details?.fileName || "file"} • ${log.details?.direction || "transfer"}`}
+                                  {isPerm && `Altered: ${Object.keys(log.details?.changedPermissions || {}).join(", ")}`}
+                                  {!isStart && !isEnd && !isFile && !isPerm && JSON.stringify(log.details)}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                              {dateStr}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

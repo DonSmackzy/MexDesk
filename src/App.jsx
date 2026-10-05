@@ -7,6 +7,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { SignalingClient } from "./services/SignalingClient";
 import { WebRTCConnection } from "./services/WebRTCConnection";
 import AegisLogo from "./components/AegisLogo";
+import { auditLogger } from "./services/AuditLogger";
 import {
   Lock,
   ArrowRight,
@@ -124,7 +125,15 @@ export function App() {
   const removeSession = useCallback((peerId) => {
     setSessions((prev) => {
       const next = { ...prev };
-      const wasHost = prev[peerId]?.role === "host";
+      const session = prev[peerId];
+      const wasHost = session?.role === "host";
+
+      // Log Session End in Audit Trail
+      if (session) {
+        const durationSec = Math.round((Date.now() - (session.startTime || Date.now())) / 1000);
+        auditLogger.logSessionEnd(peerId, session.alias, durationSec);
+      }
+
       // Cleanup WebRTC
       if (next[peerId]?.webrtc) {
         next[peerId].webrtc.close();
@@ -157,11 +166,15 @@ export function App() {
   }, [sessions]);
 
   const createSession = useCallback((peerId, data = {}) => {
+    const startTime = Date.now();
+    auditLogger.logSessionStart(peerId, data.alias, data.role || "controller", data.permissions);
+
     setSessions((prev) => ({
       ...prev,
       [peerId]: {
         id: peerId,
         alias: data.alias || "",
+        startTime,
         webrtc: data.webrtc || null,
         stream: data.stream || null,
         permissions: data.permissions || { control: true, fileTransfer: true, clipboard: true, audio: true },
@@ -194,6 +207,7 @@ export function App() {
       };
 
       hostPermissionsRef.current[peerId] = updatedPerms;
+      auditLogger.logPermissionChange(peerId, { [permissionKey]: updatedPerms[permissionKey] });
 
       // Dynamically toggle audio tracks on localStream if audio permission is toggled
       if (permissionKey === "audio" && session.localStream) {
