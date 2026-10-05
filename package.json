@@ -11,7 +11,9 @@
     "server": "node server/src/index.js",
     "electron:dev": "concurrently -k \"npm run server\" \"vite\" \"wait-on tcp:5173 && electron .\"",
     "electron:start": "electron .",
-    "dist": "npm run build && electron-builder --win portable"
+    "dist": "npm run build && electron-builder --win portable",
+    "tauri": "tauri",
+    "tauri:build": "tauri build"
   },
   "build": {
     "appId": "com.aegisdesk.app",
@@ -46,6 +48,7 @@
     "ws": "^8.16.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
     "@vitejs/plugin-react": "^4.2.1",

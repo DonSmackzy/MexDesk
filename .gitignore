@@ -7,3 +7,4 @@ out
 .env.local
 server/registry.json*
 release
+src-tauri/target
