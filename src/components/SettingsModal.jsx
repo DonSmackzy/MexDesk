@@ -485,6 +485,26 @@ export function SettingsModal({
                   </p>
                 </div>
 
+                {/* Dedicated Liquid Web TURN Relay */}
+                <div className="p-3 bg-[#0F172A] border border-[#334155] rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                      <Shield size={14} className="text-emerald-400" />
+                      <span>Dedicated Enterprise TURN Relay</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                      Configured
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-300 bg-[#1E293B] p-2 rounded-lg border border-[#334155]/60 flex items-center justify-between">
+                    <span>turn:50.28.86.1:3478</span>
+                    <span className="text-slate-400 text-[10px]">UDP / TCP</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Liquid Web dedicated relay server for seamless NAT traversal and sub-30ms P2P hole punching.
+                  </p>
+                </div>
+
                 <button type="submit" className={btnPrimaryClass}>
                   Apply Network Settings
                 </button>

@@ -48,7 +48,16 @@ export class WebRTCConnection {
           "stun:global.stun.twilio.com:3478",
         ],
       },
-      // Fallback TURN relay servers
+      // Private Liquid Web Dedicated TURN Relay
+      {
+        urls: [
+          "turn:50.28.86.1:3478?transport=udp",
+          "turn:50.28.86.1:3478?transport=tcp",
+        ],
+        username: "aegisuser",
+        credential: "AegisRelay2026!SecureKey",
+      },
+      // Public Fallback TURN relay servers
       {
         urls: [
           "turn:openrelay.metered.ca:80",
