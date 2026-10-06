@@ -240,7 +240,7 @@ export class WebRTCConnection {
 
     // Listen for peer ice-restart-request over signaling
     if (this.signaling) {
-      this.signaling.on("ice-restart-request", async (msg) => {
+      this._unlistenIceRestart = this.signaling.on("ice-restart-request", async (msg) => {
         const sender = msg.senderId || msg.from;
         if (sender === this.targetPeerId && this.isInitiator) {
           console.log(`[WebRTC] Peer requested ICE restart, renewing offer...`);
@@ -618,6 +618,10 @@ export class WebRTCConnection {
   }
 
   close() {
+    if (this._unlistenIceRestart) {
+      this._unlistenIceRestart();
+      this._unlistenIceRestart = null;
+    }
     this.stopStatsMonitoring();
     Object.values(this.channels).forEach((ch) => {
       if (ch) ch.close();

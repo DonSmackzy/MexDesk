@@ -18,6 +18,8 @@ export class InputCapture {
     this.boundContextMenu = this.onContextMenu.bind(this);
     this.boundKeyDown = this.onKeyDown.bind(this);
     this.boundKeyUp = this.onKeyUp.bind(this);
+    this.boundBlur = this.onBlur.bind(this);
+    this.activeKeys = new Set();
   }
 
   setVideoElement(videoEl) {
@@ -37,6 +39,7 @@ export class InputCapture {
 
     window.addEventListener("keydown", this.boundKeyDown);
     window.addEventListener("keyup", this.boundKeyUp);
+    window.addEventListener("blur", this.boundBlur);
 
     this.isEnabled = true;
   }
@@ -52,6 +55,8 @@ export class InputCapture {
     }
     window.removeEventListener("keydown", this.boundKeyDown);
     window.removeEventListener("keyup", this.boundKeyUp);
+    window.removeEventListener("blur", this.boundBlur);
+    this.releaseHeldKeys();
     if (this.rafId) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -198,6 +203,10 @@ export class InputCapture {
       e.preventDefault();
     }
 
+    if (e.code) {
+      this.activeKeys.add(e.code);
+    }
+
     this.batchQueue.push({
       type: "key_down",
       key: e.key,
@@ -214,11 +223,32 @@ export class InputCapture {
     if (!this.isEnabled) return;
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
 
+    if (e.code) {
+      this.activeKeys.delete(e.code);
+    }
+
     this.batchQueue.push({
       type: "key_up",
       key: e.key,
       code: e.code,
     });
+    this.flushBatch();
+  }
+
+  onBlur() {
+    this.releaseHeldKeys();
+  }
+
+  releaseHeldKeys() {
+    if (!this.isEnabled || this.activeKeys.size === 0) return;
+    for (const code of this.activeKeys) {
+      this.batchQueue.push({
+        type: "key_up",
+        code,
+        key: code,
+      });
+    }
+    this.activeKeys.clear();
     this.flushBatch();
   }
 

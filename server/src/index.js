@@ -853,6 +853,21 @@ function handleMessage(ws, msg) {
         break;
       }
 
+      case "cancel-call": {
+        const callerId = socketToPeerId.get(ws);
+        const targetId = msg.targetId ? normalizeId(msg.targetId) : null;
+        if (callerId && targetId) {
+          pendingCalls.delete(`${callerId}->${targetId}`);
+          sendToPeer(targetId, {
+            type: "call-cancelled",
+            callerId,
+            reason: msg.reason || "Call cancelled by caller."
+          });
+          console.log(`[AegisDesk Server] Call cancelled: ${callerId} -> ${targetId}`);
+        }
+        break;
+      }
+
       case "offer": {
         const senderId = socketToPeerId.get(ws);
         const targetId = normalizeId(msg.targetId);
@@ -928,10 +943,18 @@ function handleMessage(ws, msg) {
         const sender = peers.get(senderId);
         const targetId = msg.targetId ? normalizeId(msg.targetId) : null;
 
-        // Clean up pending calls for sender
+        // Clean up pending calls for sender and notify target
         for (const key of pendingCalls.keys()) {
           if (key.startsWith(`${senderId}->`) || (targetId && key === `${senderId}->${targetId}`)) {
             pendingCalls.delete(key);
+            const callTarget = targetId || key.split("->")[1];
+            if (callTarget) {
+              sendToPeer(callTarget, {
+                type: "call-cancelled",
+                callerId: senderId,
+                reason: msg.reason || "Call cancelled by caller."
+              });
+            }
           }
         }
 

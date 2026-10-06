@@ -85,6 +85,10 @@ export function FileTransferModal({ webrtc, targetPeerId, onClose }) {
         ]);
       }
     });
+
+    return () => {
+      ftEngine.destroy();
+    };
   }, [webrtc]);
 
   const handleSelectLocalFile = (name) => {

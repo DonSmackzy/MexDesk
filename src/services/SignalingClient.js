@@ -18,6 +18,8 @@ export class SignalingClient {
     }
 
     this.peerId = customId;
+    if (alias !== null) this.alias = alias;
+    if (unattendedPassword !== null) this.unattendedPassword = unattendedPassword;
     this.optOutDiscovery = optOutDiscovery;
     if (authToken) {
       this.authToken = authToken;
@@ -34,12 +36,13 @@ export class SignalingClient {
           type: "register",
           requestedId: customId,
           authToken: this.authToken,
-          alias,
-          unattendedPassword,
+          alias: this.alias,
+          unattendedPassword: this.unattendedPassword,
           optOutDiscovery: this.optOutDiscovery,
           systemInfo: {
             userAgent: navigator.userAgent,
             isElectron: !!window.mexdeskAPI?.isElectron,
+            isTauri: !!window.mexdeskAPI?.isTauri,
           }
         });
 
@@ -64,9 +67,9 @@ export class SignalingClient {
         this.isConnected = false;
         this.trigger("status", { connected: false });
         if (this.pingInterval) clearInterval(this.pingInterval);
-        // Auto-reconnect after 3s
+        // Auto-reconnect after 3s with persistent credentials and preferences
         this.reconnectTimer = setTimeout(() => {
-          this.connect(this.peerId, alias, unattendedPassword, this.authToken);
+          this.connect(this.peerId, this.alias, this.unattendedPassword, this.authToken, this.optOutDiscovery);
         }, 3000);
       };
 
@@ -174,6 +177,14 @@ export class SignalingClient {
     this.send({
       type: "reject-call",
       callerId,
+      reason
+    });
+  }
+
+  cancelCall(targetId, reason = "Call cancelled by caller") {
+    this.send({
+      type: "cancel-call",
+      targetId,
       reason
     });
   }

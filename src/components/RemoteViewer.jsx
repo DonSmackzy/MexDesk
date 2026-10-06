@@ -296,12 +296,20 @@ export function RemoteViewer({
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen().catch((err) => console.warn(err));
-      setIsFullscreen(true);
     } else {
       document.exitFullscreen().catch((err) => console.warn(err));
-      setIsFullscreen(false);
     }
   };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   const sendShortcut = (name) => {
     if (inputCaptureRef.current) {

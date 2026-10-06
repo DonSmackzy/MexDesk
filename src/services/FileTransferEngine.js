@@ -17,9 +17,12 @@ export class FileTransferEngine {
     this.sendingQueue = [];
     this.isSending = false;
 
+    this._handleControlMessage = (msg) => this.handleControlMessage(msg);
+    this._handleChunk = (chunk) => this.handleChunk(chunk);
+
     // Listen to messages from WebRTC
-    this.webrtc.on("file-message", (msg) => this.handleControlMessage(msg));
-    this.webrtc.on("file-chunk", (chunk) => this.handleChunk(chunk));
+    this.webrtc.on("file-message", this._handleControlMessage);
+    this.webrtc.on("file-chunk", this._handleChunk);
   }
 
   // Send a File or Blob
@@ -239,6 +242,17 @@ export class FileTransferEngine {
       this.currentIncomingId = null;
     }
     this.sendingQueue = this.sendingQueue.filter((t) => t.id !== fileId);
+  }
+
+  destroy() {
+    if (this.webrtc) {
+      this.webrtc.off("file-message", this._handleControlMessage);
+      this.webrtc.off("file-chunk", this._handleChunk);
+    }
+    this.handlers.clear();
+    this.receivingFiles.clear();
+    this.sendingQueue = [];
+    this.isSending = false;
   }
 
   on(event, callback) {

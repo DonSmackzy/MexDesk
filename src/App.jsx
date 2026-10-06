@@ -382,6 +382,15 @@ export function App() {
       setIncomingCall(data);
     });
 
+    client.on("call-cancelled", (data) => {
+      setIncomingCall((prev) => {
+        if (prev && prev.callerId === data.callerId) {
+          return null;
+        }
+        return prev;
+      });
+    });
+
     // Ringing State
     client.on("call-ringing", () => {
       setIsCallingModal(true);
@@ -1357,6 +1366,9 @@ export function App() {
             </div>
             <button
               onClick={() => {
+                if (callingTarget?.id && signalingRef.current) {
+                  signalingRef.current.cancelCall(callingTarget.id);
+                }
                 setIsCallingModal(false);
                 setErrorMessage("Connection attempt cancelled.");
                 setTimeout(() => setErrorMessage(""), 3500);

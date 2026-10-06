@@ -46,6 +46,35 @@ export function initTauriBridge() {
       minimize: () => invoke("window_minimize").catch(() => {}),
       maximize: () => invoke("window_maximize").catch(() => {}),
       close: () => invoke("window_close").catch(() => {}),
+      windowControl: (action) => {
+        if (action === "minimize") invoke("window_minimize").catch(() => {});
+        else if (action === "maximize") invoke("window_maximize").catch(() => {});
+        else if (action === "close") invoke("window_close").catch(() => {});
+      },
+
+      // Clipboard integration
+      readClipboard: async () => {
+        try {
+          if (navigator.clipboard?.readText) {
+            return await navigator.clipboard.readText();
+          }
+          return "";
+        } catch (e) {
+          return "";
+        }
+      },
+      writeClipboard: (text) => {
+        try {
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text).catch(() => {});
+          }
+        } catch (e) {}
+      },
+
+      // Session control state
+      updateSessionControlState: (active, controlGranted) => {
+        console.log("[Tauri Bridge] Session control state:", { active, controlGranted });
+      },
 
       // Workstation Lock
       lockWorkstation: () => invoke("lock_workstation").catch(() => {}),
